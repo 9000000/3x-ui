@@ -151,6 +151,8 @@
 "getConfigError" = "Yapılandırma dosyası alınırken bir hata oluştu"
 
 [pages.inbounds]
+"allTimeTraffic" = "Toplam Trafik"
+"allTimeTrafficUsage" = "Tüm Zamanların Toplam Kullanımı"
 "title" = "Gelenler"
 "totalDownUp" = "Toplam Gönderilen/Alınan"
 "totalUsage" = "Toplam Kullanım"
@@ -165,6 +167,8 @@
 "details" = "Detaylar"
 "transportConfig" = "Taşıma"
 "expireDate" = "Süre"
+"createdAt" = "Oluşturuldu"
+"updatedAt" = "Güncellendi"
 "resetTraffic" = "Trafiği Sıfırla"
 "addInbound" = "Gelen Ekle"
 "generalActions" = "Genel Eylemler"

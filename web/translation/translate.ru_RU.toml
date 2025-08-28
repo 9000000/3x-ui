@@ -151,6 +151,8 @@
 "getConfigError" = "Произошла ошибка при получении конфигурационного файла"
 
 [pages.inbounds]
+"allTimeTraffic" = "Общий трафик"
+"allTimeTrafficUsage" = "Общее использование за все время"
 "title" = "Инбаунды"
 "totalDownUp" = "Объем отправленного/полученного трафика"
 "totalUsage" = "Всего трафика"
@@ -165,6 +167,8 @@
 "details" = "Подробнее"
 "transportConfig" = "Транспорт"
 "expireDate" = "Дата окончания"
+"createdAt" = "Создано"
+"updatedAt" = "Обновлено"
 "resetTraffic" = "Сброс трафика"
 "addInbound" = "Создать инбаунд"
 "generalActions" = "Общие действия"

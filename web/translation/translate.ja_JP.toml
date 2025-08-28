@@ -151,6 +151,8 @@
 "getConfigError" = "設定ファイルの取得中にエラーが発生しました"
 
 [pages.inbounds]
+"allTimeTraffic" = "総トラフィック"
+"allTimeTrafficUsage" = "これまでの総使用量"
 "title" = "インバウンド一覧"
 "totalDownUp" = "総アップロード / ダウンロード"
 "totalUsage" = "総使用量"
@@ -165,6 +167,8 @@
 "details" = "詳細情報"
 "transportConfig" = "トランスポート設定"
 "expireDate" = "有効期限"
+"createdAt" = "作成"
+"updatedAt" = "更新"
 "resetTraffic" = "トラフィックリセット"
 "addInbound" = "インバウンド追加"
 "generalActions" = "一般操作"

@@ -151,6 +151,8 @@
 "getConfigError" = "Ocurrió un error al obtener el archivo de configuración"
 
 [pages.inbounds]
+"allTimeTraffic" = "Tráfico Total"
+"allTimeTrafficUsage" = "Uso total de todos los tiempos"
 "title" = "Entradas"
 "totalDownUp" = "Subidas/Descargas Totales"
 "totalUsage" = "Uso Total"
@@ -165,6 +167,8 @@
 "details" = "Detalles"
 "transportConfig" = "Transporte"
 "expireDate" = "Fecha de Expiración"
+"createdAt" = "Creado"
+"updatedAt" = "Actualizado"
 "resetTraffic" = "Restablecer Tráfico"
 "addInbound" = "Agregar Entrada"
 "generalActions" = "Acciones Generales"

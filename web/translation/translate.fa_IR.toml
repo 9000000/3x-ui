@@ -151,6 +151,8 @@
 "getConfigError" = "خطا در دریافت فایل پیکربندی"
 
 [pages.inbounds]
+"allTimeTraffic" = "کل ترافیک"
+"allTimeTrafficUsage" = "کل استفاده در تمام مدت"
 "title" = "کاربران"
 "totalDownUp" = "دریافت/ارسال کل"
 "totalUsage" = "‌‌‌مصرف کل"
@@ -165,6 +167,8 @@
 "details" = "توضیحات"
 "transportConfig" = "نحوه اتصال"
 "expireDate" = "مدت زمان"
+"createdAt" = "ایجاد"
+"updatedAt" = "به‌روزرسانی"
 "resetTraffic" = "ریست ترافیک"
 "addInbound" = "افزودن ورودی"
 "generalActions" = "عملیات کلی"
