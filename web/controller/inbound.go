@@ -24,9 +24,12 @@ func NewInboundController(g *gin.RouterGroup) *InboundController {
 }
 
 func (a *InboundController) initRouter(g *gin.RouterGroup) {
-	g = g.Group("/inbound")
 
-	g.POST("/list", a.getInbounds)
+	g.GET("/list", a.getInbounds)
+	g.GET("/get/:id", a.getInbound)
+	g.GET("/getClientTraffics/:email", a.getClientTraffics)
+	g.GET("/getClientTrafficsById/:id", a.getClientTrafficsById)
+
 	g.POST("/add", a.addInbound)
 	g.POST("/del/:id", a.delInbound)
 	g.POST("/update/:id", a.updateInbound)
@@ -41,6 +44,9 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 	g.POST("/delDepletedClients/:id", a.delDepletedClients)
 	g.POST("/import", a.importInbound)
 	g.POST("/onlines", a.onlines)
+	g.POST("/lastOnline", a.lastOnline)
+	g.POST("/updateClientTraffic/:email", a.updateClientTraffic)
+	g.POST("/:id/delClientByEmail/:email", a.delInboundClientByEmail)
 }
 
 func (a *InboundController) getInbounds(c *gin.Context) {
@@ -368,4 +374,24 @@ func (a *InboundController) updateClientTraffic(c *gin.Context) {
 	}
 
 	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundClientUpdateSuccess"), nil)
+}
+
+func (a *InboundController) delInboundClientByEmail(c *gin.Context) {
+	inboundId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		jsonMsg(c, "Invalid inbound ID", err)
+		return
+	}
+
+	email := c.Param("email")
+	needRestart, err := a.inboundService.DelInboundClientByEmail(inboundId, email)
+	if err != nil {
+		jsonMsg(c, "Failed to delete client by email", err)
+		return
+	}
+
+	jsonMsg(c, "Client deleted successfully", nil)
+	if needRestart {
+		a.xrayService.SetToNeedRestart()
+	}
 }

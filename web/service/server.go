@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"x-ui/util/sys"
 	"x-ui/xray"
 
+	"github.com/google/uuid"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/host"
@@ -343,7 +345,7 @@ func (s *ServerService) GetXrayVersions() ([]string, error) {
 			continue
 		}
 
-		if major > 25 || (major == 25 && minor > 8) || (major == 25 && minor == 8 && patch >= 3) {
+		if major > 25 || (major == 25 && minor > 9) || (major == 25 && minor == 9 && patch >= 11) {
 			versions = append(versions, release.TagName)
 		}
 	}
@@ -375,6 +377,8 @@ func (s *ServerService) downloadXRay(version string) (string, error) {
 	switch osName {
 	case "darwin":
 		osName = "macos"
+	case "windows":
+		osName = "windows"
 	}
 
 	switch arch {
@@ -418,19 +422,23 @@ func (s *ServerService) downloadXRay(version string) (string, error) {
 }
 
 func (s *ServerService) UpdateXray(version string) error {
+	// 1. Stop xray before doing anything
+	if err := s.StopXrayService(); err != nil {
+		logger.Warning("failed to stop xray before update:", err)
+	}
+
+	// 2. Download the zip
 	zipFileName, err := s.downloadXRay(version)
 	if err != nil {
 		return err
 	}
+	defer os.Remove(zipFileName)
 
 	zipFile, err := os.Open(zipFileName)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		zipFile.Close()
-		os.Remove(zipFileName)
-	}()
+	defer zipFile.Close()
 
 	stat, err := zipFile.Stat()
 	if err != nil {
@@ -441,19 +449,14 @@ func (s *ServerService) UpdateXray(version string) error {
 		return err
 	}
 
-	s.xrayService.StopXray()
-	defer func() {
-		err := s.xrayService.RestartXray(true)
-		if err != nil {
-			logger.Error("start xray failed:", err)
-		}
-	}()
-
+	// 3. Helper to extract files
 	copyZipFile := func(zipName string, fileName string) error {
 		zipFile, err := reader.Open(zipName)
 		if err != nil {
 			return err
 		}
+		defer zipFile.Close()
+		os.MkdirAll(filepath.Dir(fileName), 0755)
 		os.Remove(fileName)
 		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_RDWR|os.O_TRUNC, fs.ModePerm)
 		if err != nil {
@@ -464,8 +467,20 @@ func (s *ServerService) UpdateXray(version string) error {
 		return err
 	}
 
-	err = copyZipFile("xray", xray.GetBinaryPath())
+	// 4. Extract correct binary
+	if runtime.GOOS == "windows" {
+		targetBinary := filepath.Join("bin", "xray-windows-amd64.exe")
+		err = copyZipFile("xray.exe", targetBinary)
+	} else {
+		err = copyZipFile("xray", xray.GetBinaryPath())
+	}
 	if err != nil {
+		return err
+	}
+
+	// 5. Restart xray
+	if err := s.xrayService.RestartXray(true); err != nil {
+		logger.Error("start xray failed:", err)
 		return err
 	}
 
@@ -872,12 +887,6 @@ func (s *ServerService) GetNewEchCert(sni string) (interface{}, error) {
 	}, nil
 }
 
-type AuthBlock struct {
-	Label      string `json:"label"`
-	Decryption string `json:"decryption"`
-	Encryption string `json:"encryption"`
-}
-
 func (s *ServerService) GetNewVlessEnc() (any, error) {
 	cmd := exec.Command(xray.GetBinaryPath(), "vlessenc")
 	var out bytes.Buffer
@@ -887,37 +896,70 @@ func (s *ServerService) GetNewVlessEnc() (any, error) {
 	}
 
 	lines := strings.Split(out.String(), "\n")
-
-	var blocks []AuthBlock
-	var current *AuthBlock
+	var auths []map[string]string
+	var current map[string]string
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "Authentication:") {
 			if current != nil {
-				blocks = append(blocks, *current)
+				auths = append(auths, current)
 			}
-			current = &AuthBlock{Label: strings.TrimSpace(strings.TrimPrefix(line, "Authentication:"))}
+			current = map[string]string{
+				"label": strings.TrimSpace(strings.TrimPrefix(line, "Authentication:")),
+			}
 		} else if strings.HasPrefix(line, `"decryption"`) || strings.HasPrefix(line, `"encryption"`) {
 			parts := strings.SplitN(line, ":", 2)
 			if len(parts) == 2 && current != nil {
 				key := strings.Trim(parts[0], `" `)
 				val := strings.Trim(parts[1], `" `)
-				switch key {
-				case "decryption":
-					current.Decryption = val
-				case "encryption":
-					current.Encryption = val
-				}
+				current[key] = val
 			}
 		}
 	}
 
 	if current != nil {
-		blocks = append(blocks, *current)
+		auths = append(auths, current)
 	}
 
 	return map[string]any{
-		"auths": blocks,
+		"auths": auths,
 	}, nil
+}
+
+func (s *ServerService) GetNewUUID() (map[string]string, error) {
+	newUUID, err := uuid.NewRandom()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate UUID: %w", err)
+	}
+
+	return map[string]string{
+		"uuid": newUUID.String(),
+	}, nil
+}
+
+func (s *ServerService) GetNewmlkem768() (any, error) {
+	// Run the command
+	cmd := exec.Command(xray.GetBinaryPath(), "mlkem768")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	lines := strings.Split(out.String(), "\n")
+
+	SeedLine := strings.Split(lines[0], ":")
+	ClientLine := strings.Split(lines[1], ":")
+
+	seed := strings.TrimSpace(SeedLine[1])
+	client := strings.TrimSpace(ClientLine[1])
+
+	keyPair := map[string]any{
+		"seed":   seed,
+		"client": client,
+	}
+
+	return keyPair, nil
 }

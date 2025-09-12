@@ -351,7 +351,7 @@
           { label: '🇨🇳 China', value: 'geosite:cn' },
           { label: '🇨🇳 .cn', value: 'regexp:.*\\.cn$' },
           { label: '🇷🇺 Russia', value: 'ext:geosite_RU.dat:ru-available-only-inside' },
-          { label: '🇷🇺 .ru', value: 'regexp:.*\\.ru' },
+          { label: '🇷🇺 .ru', value: 'regexp:.*\\.ru$' },
           { label: '🇷🇺 .su', value: 'regexp:.*\\.su$' },
           { label: '🇷🇺 .рф', value: 'regexp:.*\\.xn--p1ai$' },
           { label: '🇻🇳 .vn', value: 'regexp:.*\\.vn$' },
@@ -420,7 +420,7 @@
       },
       async restartXray() {
         this.loading(true);
-        const msg = await HttpUtil.post("server/restartXrayService");
+        const msg = await HttpUtil.post("/panel/api/server/restartXrayService");
         this.loading(false);
         if (msg.success) {
           await PromiseUtil.sleep(500);
@@ -572,7 +572,7 @@
             serverObj = o.settings.vnext;
             break;
           case Protocols.HTTP:
-          case Protocols.Socks:
+          case Protocols.Mixed:
           case Protocols.Shadowsocks:
           case Protocols.Trojan:
             serverObj = o.settings.servers;
