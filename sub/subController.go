@@ -4,15 +4,18 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
-	"x-ui/config"
+
+	"github.com/mhsanaei/3x-ui/v2/config"
 
 	"github.com/gin-gonic/gin"
 )
 
+// SUBController handles HTTP requests for subscription links and JSON configurations.
 type SUBController struct {
 	subTitle       string
 	subPath        string
 	subJsonPath    string
+	jsonEnabled    bool
 	subEncrypt     bool
 	updateInterval string
 
@@ -20,10 +23,12 @@ type SUBController struct {
 	subJsonService *SubJsonService
 }
 
+// NewSUBController creates a new subscription controller with the given configuration.
 func NewSUBController(
 	g *gin.RouterGroup,
 	subPath string,
 	jsonPath string,
+	jsonEnabled bool,
 	encrypt bool,
 	showInfo bool,
 	rModel string,
@@ -39,6 +44,7 @@ func NewSUBController(
 		subTitle:       subTitle,
 		subPath:        subPath,
 		subJsonPath:    jsonPath,
+		jsonEnabled:    jsonEnabled,
 		subEncrypt:     encrypt,
 		updateInterval: update,
 
@@ -49,14 +55,18 @@ func NewSUBController(
 	return a
 }
 
+// initRouter registers HTTP routes for subscription links and JSON endpoints
+// on the provided router group.
 func (a *SUBController) initRouter(g *gin.RouterGroup) {
 	gLink := g.Group(a.subPath)
-	gJson := g.Group(a.subJsonPath)
-
 	gLink.GET(":subid", a.subs)
-	gJson.GET(":subid", a.subJsons)
+	if a.jsonEnabled {
+		gJson := g.Group(a.subJsonPath)
+		gJson.GET(":subid", a.subJsons)
+	}
 }
 
+// subs handles HTTP requests for subscription links, returning either HTML page or base64-encoded subscription data.
 func (a *SUBController) subs(c *gin.Context) {
 	subId := c.Param("subid")
 	scheme, host, hostWithPort, hostHeader := a.subService.ResolveRequest(c)
@@ -74,8 +84,11 @@ func (a *SUBController) subs(c *gin.Context) {
 		if strings.Contains(strings.ToLower(accept), "text/html") || c.Query("html") == "1" || strings.EqualFold(c.Query("view"), "html") {
 			// Build page data in service
 			subURL, subJsonURL := a.subService.BuildURLs(scheme, hostWithPort, a.subPath, a.subJsonPath, subId)
+			if !a.jsonEnabled {
+				subJsonURL = ""
+			}
 			page := a.subService.BuildPageData(subId, hostHeader, traffic, lastOnline, subs, subURL, subJsonURL)
-			c.HTML(200, "subscription.html", gin.H{
+			c.HTML(200, "subpage.html", gin.H{
 				"title":        "subscription.title",
 				"cur_ver":      config.GetVersion(),
 				"host":         page.Host,
@@ -111,6 +124,7 @@ func (a *SUBController) subs(c *gin.Context) {
 	}
 }
 
+// subJsons handles HTTP requests for JSON subscription configurations.
 func (a *SUBController) subJsons(c *gin.Context) {
 	subId := c.Param("subid")
 	_, host, _, _ := a.subService.ResolveRequest(c)
@@ -126,6 +140,7 @@ func (a *SUBController) subJsons(c *gin.Context) {
 	}
 }
 
+// ApplyCommonHeaders sets common HTTP headers for subscription responses including user info, update interval, and profile title.
 func (a *SUBController) ApplyCommonHeaders(c *gin.Context, header, updateInterval, profileTitle string) {
 	c.Writer.Header().Set("Subscription-Userinfo", header)
 	c.Writer.Header().Set("Profile-Update-Interval", updateInterval)

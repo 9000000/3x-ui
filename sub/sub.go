@@ -1,3 +1,5 @@
+// Package sub provides subscription server functionality for the 3x-ui panel,
+// including HTTP/HTTPS servers for serving subscription links and JSON configurations.
 package sub
 
 import (
@@ -13,13 +15,13 @@ import (
 	"strconv"
 	"strings"
 
-	"x-ui/logger"
-	"x-ui/util/common"
-	webpkg "x-ui/web"
-	"x-ui/web/locale"
-	"x-ui/web/middleware"
-	"x-ui/web/network"
-	"x-ui/web/service"
+	"github.com/mhsanaei/3x-ui/v2/logger"
+	"github.com/mhsanaei/3x-ui/v2/util/common"
+	webpkg "github.com/mhsanaei/3x-ui/v2/web"
+	"github.com/mhsanaei/3x-ui/v2/web/locale"
+	"github.com/mhsanaei/3x-ui/v2/web/middleware"
+	"github.com/mhsanaei/3x-ui/v2/web/network"
+	"github.com/mhsanaei/3x-ui/v2/web/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,7 +32,7 @@ func setEmbeddedTemplates(engine *gin.Engine) error {
 		webpkg.EmbeddedHTML(),
 		"html/common/page.html",
 		"html/component/aThemeSwitch.html",
-		"html/subscription.html",
+		"html/settings/panel/subscription/subpage.html",
 	)
 	if err != nil {
 		return err
@@ -39,6 +41,7 @@ func setEmbeddedTemplates(engine *gin.Engine) error {
 	return nil
 }
 
+// Server represents the subscription server that serves subscription links and JSON configurations.
 type Server struct {
 	httpServer *http.Server
 	listener   net.Listener
@@ -50,6 +53,7 @@ type Server struct {
 	cancel context.CancelFunc
 }
 
+// NewServer creates a new subscription server instance with a cancellable context.
 func NewServer() *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Server{
@@ -58,6 +62,8 @@ func NewServer() *Server {
 	}
 }
 
+// initRouter configures the subscription server's Gin engine, middleware,
+// templates and static assets and returns the ready-to-use engine.
 func (s *Server) initRouter() (*gin.Engine, error) {
 	// Always run in release mode for the subscription server
 	gin.DefaultWriter = io.Discard
@@ -81,6 +87,12 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	}
 
 	JsonPath, err := s.settingService.GetSubJsonPath()
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine if JSON subscription endpoint is enabled
+	subJsonEnable, err := s.settingService.GetSubJsonEnable()
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +198,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	g := engine.Group("/")
 
 	s.sub = NewSUBController(
-		g, LinksPath, JsonPath, Encrypt, ShowInfo, RemarkModel, SubUpdates,
+		g, LinksPath, JsonPath, subJsonEnable, Encrypt, ShowInfo, RemarkModel, SubUpdates,
 		SubJsonFragment, SubJsonNoises, SubJsonMux, SubJsonRules, SubTitle)
 
 	return engine, nil
@@ -207,7 +219,7 @@ func (s *Server) getHtmlFiles() ([]string, error) {
 		files = append(files, theme)
 	}
 	// page itself
-	page := filepath.Join(dir, "web", "html", "subscription.html")
+	page := filepath.Join(dir, "web", "html", "subpage.html")
 	if _, err := os.Stat(page); err == nil {
 		files = append(files, page)
 	} else {
@@ -216,6 +228,7 @@ func (s *Server) getHtmlFiles() ([]string, error) {
 	return files, nil
 }
 
+// Start initializes and starts the subscription server with configured settings.
 func (s *Server) Start() (err error) {
 	// This is an anonymous function, no function name
 	defer func() {
@@ -289,6 +302,7 @@ func (s *Server) Start() (err error) {
 	return nil
 }
 
+// Stop gracefully shuts down the subscription server and closes the listener.
 func (s *Server) Stop() error {
 	s.cancel()
 
@@ -303,6 +317,7 @@ func (s *Server) Stop() error {
 	return common.Combine(err1, err2)
 }
 
+// GetCtx returns the server's context for cancellation and deadline management.
 func (s *Server) GetCtx() context.Context {
 	return s.ctx
 }

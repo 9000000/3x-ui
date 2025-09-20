@@ -660,7 +660,7 @@
   }, {
     title: '{{ i18n "pages.inbounds.allTimeTraffic" }}',
     align: 'center',
-    width: 70,
+    width: 60,
     scopedSlots: { customRender: 'allTimeInbound' },
   }, {
     title: '{{ i18n "pages.inbounds.expireDate" }}',
@@ -693,12 +693,12 @@
   }];
 
   const innerColumns = [
-    { title: '{{ i18n "pages.inbounds.operate" }}', width: 65, scopedSlots: { customRender: 'actions' } },
-    { title: '{{ i18n "pages.inbounds.enable" }}', width: 35, scopedSlots: { customRender: 'enable' } },
+    { title: '{{ i18n "pages.inbounds.operate" }}', width: 70, scopedSlots: { customRender: 'actions' } },
+    { title: '{{ i18n "pages.inbounds.enable" }}', width: 30, scopedSlots: { customRender: 'enable' } },
     { title: '{{ i18n "online" }}', width: 32, scopedSlots: { customRender: 'online' } },
     { title: '{{ i18n "pages.inbounds.client" }}', width: 80, scopedSlots: { customRender: 'client' } },
     { title: '{{ i18n "pages.inbounds.traffic" }}', width: 80, align: 'center', scopedSlots: { customRender: 'traffic' } },
-    { title: '{{ i18n "pages.inbounds.allTimeTraffic" }}', width: 80, align: 'center', scopedSlots: { customRender: 'allTime' } },
+    { title: '{{ i18n "pages.inbounds.allTimeTraffic" }}', width: 60, align: 'center', scopedSlots: { customRender: 'allTime' } },
     { title: '{{ i18n "pages.inbounds.expireDate" }}', width: 80, align: 'center', scopedSlots: { customRender: 'expiryTime' } },
   ];
 
@@ -736,10 +736,11 @@
       refreshing: false,
       refreshInterval: Number(localStorage.getItem("refreshInterval")) || 5000,
       subSettings: {
-        enable: false,
+        enable: true,
         subTitle: '',
         subURI: '',
         subJsonURI: '',
+        subJsonEnable: false,
       },
       remarkModel: '-ieo',
       datepicker: 'gregorian',
@@ -795,7 +796,8 @@
             enable: subEnable,
             subTitle: subTitle,
             subURI: subURI,
-            subJsonURI: subJsonURI
+            subJsonURI: subJsonURI,
+            subJsonEnable: subJsonEnable,
           };
           this.pageSize = pageSize;
           this.remarkModel = remarkModel;
@@ -1432,15 +1434,19 @@
         clientStats = dbInbound.clientStats ? dbInbound.clientStats.find(stats => stats.email === email) : null;
         return clientStats ? clientStats['enable'] : true;
       },
-      // Returns true when client's traffic is exhausted or expiry time is passed
       isClientDepleted(dbInbound, email) {
         if (!email || !dbInbound || !dbInbound.clientStats) return false;
         const stats = dbInbound.clientStats.find(s => s.email === email);
         if (!stats) return false;
-        const now = new Date().getTime();
-        const exhausted = stats.total > 0 && (stats.up + stats.down) >= stats.total;
-        const expired = stats.expiryTime > 0 && now >= stats.expiryTime;
-        return exhausted || expired;
+        const total = stats.total ?? 0;
+        const used = (stats.up ?? 0) + (stats.down ?? 0);
+        const hasTotal = total > 0;
+        const exhausted = hasTotal && used >= total;
+        const expiryTime = stats.expiryTime ?? 0;
+        const hasExpiry = expiryTime > 0;
+        const now = Date.now();
+        const expired = hasExpiry && expiryTime <= now;
+        return expired || exhausted;
       },
       isClientOnline(email) {
         return this.onlineClients.includes(email);

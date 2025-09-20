@@ -11,15 +11,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/goccy/go-json"
 
-	"x-ui/database"
-	"x-ui/database/model"
-	"x-ui/logger"
-	"x-ui/util/common"
-	"x-ui/util/random"
-	"x-ui/web/service"
-	"x-ui/xray"
+	"github.com/mhsanaei/3x-ui/v2/database"
+	"github.com/mhsanaei/3x-ui/v2/database/model"
+	"github.com/mhsanaei/3x-ui/v2/logger"
+	"github.com/mhsanaei/3x-ui/v2/util/common"
+	"github.com/mhsanaei/3x-ui/v2/util/random"
+	"github.com/mhsanaei/3x-ui/v2/web/service"
+	"github.com/mhsanaei/3x-ui/v2/xray"
 )
 
+// SubService provides business logic for generating subscription links and managing subscription data.
 type SubService struct {
 	address        string
 	showInfo       bool
@@ -29,6 +30,7 @@ type SubService struct {
 	settingService service.SettingService
 }
 
+// NewSubService creates a new subscription service with the given configuration.
 func NewSubService(showInfo bool, remarkModel string) *SubService {
 	return &SubService{
 		showInfo:    showInfo,
@@ -36,6 +38,7 @@ func NewSubService(showInfo bool, remarkModel string) *SubService {
 	}
 }
 
+// GetSubs retrieves subscription links for a given subscription ID and host.
 func (s *SubService) GetSubs(subId string, host string) ([]string, int64, xray.ClientTraffic, error) {
 	s.address = host
 	var result []string
@@ -318,9 +321,6 @@ func (s *SubService) genVlessLink(inbound *model.Inbound, email string) string {
 	if inbound.Protocol != model.VLESS {
 		return ""
 	}
-	var vlessSettings model.VLESSSettings
-	_ = json.Unmarshal([]byte(inbound.Settings), &vlessSettings)
-
 	var stream map[string]any
 	json.Unmarshal([]byte(inbound.StreamSettings), &stream)
 	clients, _ := s.inboundService.GetClients(inbound)
@@ -335,10 +335,14 @@ func (s *SubService) genVlessLink(inbound *model.Inbound, email string) string {
 	port := inbound.Port
 	streamNetwork := stream["network"].(string)
 	params := make(map[string]string)
-	if vlessSettings.Encryption != "" {
-		params["encryption"] = vlessSettings.Encryption
-	}
 	params["type"] = streamNetwork
+
+	// Add encryption parameter for VLESS from inbound settings
+	var settings map[string]any
+	json.Unmarshal([]byte(inbound.Settings), &settings)
+	if encryption, ok := settings["encryption"].(string); ok {
+		params["encryption"] = encryption
+	}
 
 	switch streamNetwork {
 	case "tcp":
@@ -1007,7 +1011,8 @@ func searchHost(headers any) string {
 	return ""
 }
 
-// PageData is a view model for subscription.html
+// PageData is a view model for subpage.html
+// PageData contains data for rendering the subscription information page.
 type PageData struct {
 	Host         string
 	BasePath     string
@@ -1029,6 +1034,7 @@ type PageData struct {
 }
 
 // ResolveRequest extracts scheme and host info from request/headers consistently.
+// ResolveRequest extracts scheme, host, and header information from an HTTP request.
 func (s *SubService) ResolveRequest(c *gin.Context) (scheme string, host string, hostWithPort string, hostHeader string) {
 	// scheme
 	scheme = "http"
@@ -1072,6 +1078,7 @@ func (s *SubService) ResolveRequest(c *gin.Context) (scheme string, host string,
 }
 
 // BuildURLs constructs absolute subscription and json URLs.
+// BuildURLs constructs subscription and JSON subscription URLs for a given subscription ID.
 func (s *SubService) BuildURLs(scheme, hostWithPort, subPath, subJsonPath, subId string) (subURL, subJsonURL string) {
 	if strings.HasSuffix(subPath, "/") {
 		subURL = scheme + "://" + hostWithPort + subPath + subId
@@ -1087,6 +1094,7 @@ func (s *SubService) BuildURLs(scheme, hostWithPort, subPath, subJsonPath, subId
 }
 
 // BuildPageData parses header and prepares the template view model.
+// BuildPageData constructs page data for rendering the subscription information page.
 func (s *SubService) BuildPageData(subId string, hostHeader string, traffic xray.ClientTraffic, lastOnline int64, subs []string, subURL, subJsonURL string) PageData {
 	download := common.FormatTraffic(traffic.Down)
 	upload := common.FormatTraffic(traffic.Up)

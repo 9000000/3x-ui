@@ -101,7 +101,10 @@
       if (sj) this.app.subJsonUrl = sj;
       drawQR(this.app.subUrl);
       try {
-        new QRious({ element: document.getElementById('qrcode-subjson'), value: this.app.subJsonUrl || '', size: 220 });
+        const elJson = document.getElementById('qrcode-subjson');
+        if (elJson && this.app.subJsonUrl) {
+          new QRious({ element: elJson, value: this.app.subJsonUrl, size: 220 });
+        }
       } catch (e) { /* ignore */ }
       this._onResize = () => { this.viewportWidth = window.innerWidth; };
       window.addEventListener('resize', this._onResize);
@@ -127,6 +130,18 @@
         const base64Url = btoa(rawUrl);
         const remark = encodeURIComponent(this.app.sId || 'Subscription');
         return `shadowrocket://add/sub/${base64Url}?remark=${remark}`;
+      },
+      v2boxUrl() {
+        return `v2box://install-sub?url=${encodeURIComponent(this.app.subUrl)}&name=${encodeURIComponent(this.app.sId)}`;
+      },
+      streisandUrl() {
+        return `streisand://import/${encodeURIComponent(this.app.subUrl)}`;
+      },
+      v2raytunUrl() {
+        return this.app.subUrl; 
+      },
+      npvtunUrl() {
+        return this.app.subUrl; 
       }
     },
     methods: {
