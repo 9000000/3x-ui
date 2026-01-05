@@ -53,7 +53,10 @@ os_version=""
 os_version=$(grep "^VERSION_ID" /etc/os-release | cut -d '=' -f2 | tr -d '"' | tr -d '.')
 
 # Declare Variables
-log_folder="${XUI_LOG_FOLDER:=/var/log}"
+xui_folder="${XUI_MAIN_FOLDER:=/usr/local/x-ui}"
+xui_service="${XUI_SERVICE:=/etc/systemd/system}"
+log_folder="${XUI_LOG_FOLDER:=/var/log/x-ui}"
+mkdir -p "${log_folder}"
 iplimit_log_path="${log_folder}/3xipl.log"
 iplimit_banned_log_path="${log_folder}/3xipl-banned.log"
 
@@ -125,8 +128,8 @@ update_menu() {
         return 0
     fi
 
-    wget -O /usr/bin/x-ui https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh
-    chmod +x /usr/local/x-ui/x-ui.sh
+    curl -fLRo /usr/bin/x-ui https://raw.githubusercontent.com/MHSanaei/3x-ui/main/x-ui.sh
+    chmod +x ${xui_folder}/x-ui.sh
     chmod +x /usr/bin/x-ui
 
     if [[ $? == 0 ]]; then
@@ -175,13 +178,13 @@ uninstall() {
     else
         systemctl stop x-ui
         systemctl disable x-ui
-        rm /etc/systemd/system/x-ui.service -f
+        rm ${xui_service}/x-ui.service -f
         systemctl daemon-reload
         systemctl reset-failed
     fi
 
     rm /etc/x-ui/ -rf
-    rm /usr/local/x-ui/ -rf
+    rm ${xui_folder}/ -rf
 
     echo ""
     echo -e "Uninstalled Successfully.\n"
@@ -209,9 +212,9 @@ reset_user() {
 
     read -rp "Do you want to disable currently configured two-factor authentication? (y/n): " twoFactorConfirm
     if [[ $twoFactorConfirm != "y" && $twoFactorConfirm != "Y" ]]; then
-        /usr/local/x-ui/x-ui setting -username ${config_account} -password ${config_password} -resetTwoFactor false >/dev/null 2>&1
+        ${xui_folder}/x-ui setting -username ${config_account} -password ${config_password} -resetTwoFactor false >/dev/null 2>&1
     else
-        /usr/local/x-ui/x-ui setting -username ${config_account} -password ${config_password} -resetTwoFactor true >/dev/null 2>&1
+        ${xui_folder}/x-ui setting -username ${config_account} -password ${config_password} -resetTwoFactor true >/dev/null 2>&1
         echo -e "Two factor authentication has been disabled."
     fi
     
@@ -227,57 +230,6 @@ gen_random_string() {
     echo "$random_string"
 }
 
-# Generate and configure a self-signed SSL certificate
-setup_self_signed_certificate() {
-    local name="$1"   # domain or IP to place in SAN
-    local certDir="/root/cert/selfsigned"
-
-    LOGI "Generating a self-signed certificate (not publicly trusted)..."
-
-    mkdir -p "$certDir"
-
-    local sanExt=""
-    if [[ "$name" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ || "$name" =~ : ]]; then
-        sanExt="IP:${name}"
-    else
-        sanExt="DNS:${name}"
-    fi
-
-    openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
-        -keyout "${certDir}/privkey.pem" \
-        -out "${certDir}/fullchain.pem" \
-        -subj "/CN=${name}" \
-        -addext "subjectAltName=${sanExt}" >/dev/null 2>&1
-
-    if [[ $? -ne 0 ]]; then
-        local tmpCfg="${certDir}/openssl.cnf"
-        cat > "$tmpCfg" <<EOF
-[req]
-distinguished_name=req_distinguished_name
-req_extensions=v3_req
-[req_distinguished_name]
-[v3_req]
-subjectAltName=${sanExt}
-EOF
-        openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
-            -keyout "${certDir}/privkey.pem" \
-            -out "${certDir}/fullchain.pem" \
-            -subj "/CN=${name}" \
-            -config "$tmpCfg" -extensions v3_req >/dev/null 2>&1
-        rm -f "$tmpCfg"
-    fi
-
-    if [[ ! -f "${certDir}/fullchain.pem" || ! -f "${certDir}/privkey.pem" ]]; then
-        LOGE "Failed to generate self-signed certificate"
-        return 1
-    fi
-
-    chmod 755 ${certDir}/* >/dev/null 2>&1
-    /usr/local/x-ui/x-ui cert -webCert "${certDir}/fullchain.pem" -webCertKey "${certDir}/privkey.pem" >/dev/null 2>&1
-    LOGI "Self-signed certificate configured. Browsers will show a warning."
-    return 0
-}
-
 reset_webbasepath() {
     echo -e "${yellow}Resetting Web Base Path${plain}"
 
@@ -290,7 +242,7 @@ reset_webbasepath() {
     config_webBasePath=$(gen_random_string 18)
 
     # Apply the new web base path setting
-    /usr/local/x-ui/x-ui setting -webBasePath "${config_webBasePath}" >/dev/null 2>&1
+    ${xui_folder}/x-ui setting -webBasePath "${config_webBasePath}" >/dev/null 2>&1
 
     echo -e "Web base path has been reset to: ${green}${config_webBasePath}${plain}"
     echo -e "${green}Please use the new web base path to access the panel.${plain}"
@@ -305,13 +257,13 @@ reset_config() {
         fi
         return 0
     fi
-    /usr/local/x-ui/x-ui setting -reset
+    ${xui_folder}/x-ui setting -reset
     echo -e "All panel settings have been reset to default."
     restart
 }
 
 check_config() {
-    local info=$(/usr/local/x-ui/x-ui setting -show true)
+    local info=$(${xui_folder}/x-ui setting -show true)
     if [[ $? != 0 ]]; then
         LOGE "get current settings error, please check logs"
         show_menu
@@ -321,7 +273,7 @@ check_config() {
 
     local existing_webBasePath=$(echo "$info" | grep -Eo 'webBasePath: .+' | awk '{print $2}')
     local existing_port=$(echo "$info" | grep -Eo 'port: .+' | awk '{print $2}')
-    local existing_cert=$(/usr/local/x-ui/x-ui setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
+    local existing_cert=$(${xui_folder}/x-ui setting -getCert true | grep 'cert:' | awk -F': ' '{print $2}' | tr -d '[:space:]')
     local server_ip=$(curl -s --max-time 3 https://api.ipify.org)
     if [ -z "$server_ip" ]; then
         server_ip=$(curl -s --max-time 3 https://4.ident.me)
@@ -337,16 +289,19 @@ check_config() {
         fi
     else
         echo -e "${red}⚠ WARNING: No SSL certificate configured!${plain}"
-        read -rp "Generate a self-signed SSL certificate now? [y/N]: " gen_self
-        if [[ "$gen_self" == "y" || "$gen_self" == "Y" ]]; then
+        echo -e "${yellow}You can get a Let's Encrypt certificate for your IP address (valid ~6 days, auto-renews).${plain}"
+        read -rp "Generate SSL certificate for IP now? [y/N]: " gen_ssl
+        if [[ "$gen_ssl" == "y" || "$gen_ssl" == "Y" ]]; then
             stop >/dev/null 2>&1
-            setup_self_signed_certificate "${server_ip}"
+            ssl_cert_issue_for_ip
             if [[ $? -eq 0 ]]; then
-                restart >/dev/null 2>&1
                 echo -e "${green}Access URL: https://${server_ip}:${existing_port}${existing_webBasePath}${plain}"
+                # ssl_cert_issue_for_ip already restarts the panel, but ensure it's running
+                start >/dev/null 2>&1
             else
-                LOGE "Self-signed SSL setup failed."
+                LOGE "IP certificate setup failed."
                 echo -e "${yellow}You can try again via option 18 (SSL Certificate Management).${plain}"
+                start >/dev/null 2>&1
             fi
         else
             echo -e "${yellow}Access URL: http://${server_ip}:${existing_port}${existing_webBasePath}${plain}"
@@ -362,7 +317,7 @@ set_port() {
         LOGD "Cancelled"
         before_show_menu
     else
-        /usr/local/x-ui/x-ui setting -port ${port}
+        ${xui_folder}/x-ui setting -port ${port}
         echo -e "The port is set, Please restart the panel now, and use the new port ${green}${port}${plain} to access web panel"
         confirm_restart
     fi
@@ -630,7 +585,7 @@ enable_bbr() {
 }
 
 update_shell() {
-    wget -O /usr/bin/x-ui -N https://github.com/MHSanaei/3x-ui/raw/main/x-ui.sh
+    curl -fLRo /usr/bin/x-ui -z /usr/bin/x-ui https://github.com/MHSanaei/3x-ui/raw/main/x-ui.sh
     if [[ $? != 0 ]]; then
         echo ""
         LOGE "Failed to download script, Please check whether the machine can connect Github"
@@ -654,7 +609,7 @@ check_status() {
             return 1
         fi
     else
-        if [[ ! -f /etc/systemd/system/x-ui.service ]]; then
+        if [[ ! -f ${xui_service}/x-ui.service ]]; then
             return 2
         fi
         temp=$(systemctl status x-ui | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
@@ -954,18 +909,18 @@ update_all_geofiles() {
 }
 
 update_main_geofiles() {
-        wget -O geoip.dat       https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-        wget -O geosite.dat     https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
+        curl -fLRo geoip.dat       https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
+        curl -fLRo geosite.dat     https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
 }
 
 update_ir_geofiles() {
-        wget -O geoip_IR.dat    https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat
-        wget -O geosite_IR.dat  https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat
+        curl -fLRo geoip_IR.dat    https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat
+        curl -fLRo geosite_IR.dat  https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat
 }
 
 update_ru_geofiles() {
-        wget -O geoip_RU.dat    https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat
-        wget -O geosite_RU.dat  https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat
+        curl -fLRo geoip_RU.dat    https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat
+        curl -fLRo geosite_RU.dat  https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat
 }
 
 update_geo() {
@@ -976,7 +931,7 @@ update_geo() {
     echo -e "${green}\t0.${plain} Back to Main Menu"
     read -rp "Choose an option: " choice
 
-    cd /usr/local/x-ui/bin
+    cd ${xui_folder}/bin
 
     case "$choice" in
     0)
@@ -1033,12 +988,12 @@ install_acme() {
 }
 
 ssl_cert_issue_main() {
-    echo -e "${green}\t1.${plain} Get SSL"
+    echo -e "${green}\t1.${plain} Get SSL (Domain)"
     echo -e "${green}\t2.${plain} Revoke"
     echo -e "${green}\t3.${plain} Force Renew"
     echo -e "${green}\t4.${plain} Show Existing Domains"
     echo -e "${green}\t5.${plain} Set Cert paths for the panel"
-    echo -e "${green}\t6.${plain} Auto SSL for Server IP"
+    echo -e "${green}\t6.${plain} Get SSL for IP Address (6-day cert, auto-renews)"
     echo -e "${green}\t0.${plain} Back to Main Menu"
 
     read -rp "Choose an option: " choice
@@ -1118,7 +1073,7 @@ ssl_cert_issue_main() {
                 local webKeyFile="/root/cert/${domain}/privkey.pem"
 
                 if [[ -f "${webCertFile}" && -f "${webKeyFile}" ]]; then
-                    /usr/local/x-ui/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+                    ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
                     echo "Panel paths set for domain: $domain"
                     echo "  - Certificate File: $webCertFile"
                     echo "  - Private Key File: $webKeyFile"
@@ -1133,9 +1088,10 @@ ssl_cert_issue_main() {
         ssl_cert_issue_main
         ;;
     6)
-        echo -e "${yellow}Automatic SSL Certificate for Server IP${plain}"
-        echo -e "This will automatically obtain and configure an SSL certificate for your server's IP address."
-        echo -e "${yellow}Note: Let's Encrypt supports IP certificates. Make sure port 80 is open.${plain}"
+        echo -e "${yellow}Let's Encrypt SSL Certificate for IP Address${plain}"
+        echo -e "This will obtain a certificate for your server's IP using the shortlived profile."
+        echo -e "${yellow}Certificate valid for ~6 days, auto-renews via acme.sh cron job.${plain}"
+        echo -e "${yellow}Port 80 must be open and accessible from the internet.${plain}"
         confirm "Do you want to proceed?" "y"
         if [[ $? == 0 ]]; then
             ssl_cert_issue_for_ip
@@ -1152,9 +1108,10 @@ ssl_cert_issue_main() {
 
 ssl_cert_issue_for_ip() {
     LOGI "Starting automatic SSL certificate generation for server IP..."
+    LOGI "Using Let's Encrypt shortlived profile (~6 days validity, auto-renews)"
     
-    local existing_webBasePath=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
-    local existing_port=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
+    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
+    local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
     
     # Get server IP
     local server_ip=$(curl -s --max-time 3 https://api.ipify.org)
@@ -1168,6 +1125,11 @@ ssl_cert_issue_for_ip() {
     fi
     
     LOGI "Server IP detected: ${server_ip}"
+    
+    # Ask for optional IPv6
+    local ipv6_addr=""
+    read -rp "Do you have an IPv6 address to include? (leave empty to skip): " ipv6_addr
+    ipv6_addr="${ipv6_addr// /}"  # Trim whitespace
     
     # check for acme.sh first
     if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then
@@ -1208,66 +1170,83 @@ ssl_cert_issue_for_ip() {
         ;;
     esac
     
-    # check if certificate already exists for this IP
-    local currentCert=$(~/.acme.sh/acme.sh --list | tail -1 | awk '{print $1}')
-    if [ "${currentCert}" == "${server_ip}" ]; then
-        LOGI "Certificate already exists for IP: ${server_ip}"
-        certPath="/root/cert/${server_ip}"
-    else
-        # create directory for certificate
-        certPath="/root/cert/${server_ip}"
-        if [ ! -d "$certPath" ]; then
-            mkdir -p "$certPath"
-        else
-            rm -rf "$certPath"
-            mkdir -p "$certPath"
-        fi
-        
-        # Use port 80 for certificate issuance
-        local WebPort=80
-        LOGI "Using port ${WebPort} to issue certificate for IP: ${server_ip}"
-        LOGI "Make sure port ${WebPort} is open and not in use..."
-        
-        # issue the certificate for IP
-        ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
-        ~/.acme.sh/acme.sh --issue -d ${server_ip} --listen-v6 --standalone --httpport ${WebPort} --force
-        if [ $? -ne 0 ]; then
-            LOGE "Failed to issue certificate for IP: ${server_ip}"
-            LOGE "Make sure port ${WebPort} is open and the server is accessible from the internet"
-            rm -rf ~/.acme.sh/${server_ip}
-            return 1
-        else
-            LOGI "Certificate issued successfully for IP: ${server_ip}"
-        fi
-        
-        # install the certificate
-        ~/.acme.sh/acme.sh --installcert -d ${server_ip} \
-            --key-file /root/cert/${server_ip}/privkey.pem \
-            --fullchain-file /root/cert/${server_ip}/fullchain.pem \
-            --reloadcmd "x-ui restart"
-        
-        if [ $? -ne 0 ]; then
-            LOGE "Failed to install certificate"
-            rm -rf ~/.acme.sh/${server_ip}
-            return 1
-        else
-            LOGI "Certificate installed successfully"
-        fi
-        
-        # enable auto-renew
-        ~/.acme.sh/acme.sh --upgrade --auto-upgrade >/dev/null 2>&1
-        chmod 755 $certPath/*
+    # Create certificate directory
+    certPath="/root/cert/ip"
+    mkdir -p "$certPath"
+    
+    # Build domain arguments
+    local domain_args="-d ${server_ip}"
+    if [[ -n "$ipv6_addr" ]] && is_ipv6 "$ipv6_addr"; then
+        domain_args="${domain_args} -d ${ipv6_addr}"
+        LOGI "Including IPv6 address: ${ipv6_addr}"
     fi
     
+    # Use port 80 for certificate issuance
+    local WebPort=80
+    LOGI "Using port ${WebPort} to issue certificate for IP: ${server_ip}"
+    LOGI "Make sure port ${WebPort} is open and not in use..."
+    
+    # Reload command - restarts panel after renewal
+    local reloadCmd="systemctl restart x-ui 2>/dev/null || rc-service x-ui restart 2>/dev/null"
+    
+    # issue the certificate for IP with shortlived profile
+    ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+    ~/.acme.sh/acme.sh --issue \
+        ${domain_args} \
+        --standalone \
+        --server letsencrypt \
+        --certificate-profile shortlived \
+        --days 6 \
+        --httpport ${WebPort} \
+        --force
+    
+    if [ $? -ne 0 ]; then
+        LOGE "Failed to issue certificate for IP: ${server_ip}"
+        LOGE "Make sure port ${WebPort} is open and the server is accessible from the internet"
+        # Cleanup acme.sh data for both IPv4 and IPv6 if specified
+        rm -rf ~/.acme.sh/${server_ip} 2>/dev/null
+        [[ -n "$ipv6_addr" ]] && rm -rf ~/.acme.sh/${ipv6_addr} 2>/dev/null
+        rm -rf ${certPath} 2>/dev/null
+        return 1
+    else
+        LOGI "Certificate issued successfully for IP: ${server_ip}"
+    fi
+    
+    # Install the certificate
+    # Note: acme.sh may report "Reload error" and exit non-zero if reloadcmd fails,
+    # but the cert files are still installed. We check for files instead of exit code.
+    ~/.acme.sh/acme.sh --installcert -d ${server_ip} \
+        --key-file "${certPath}/privkey.pem" \
+        --fullchain-file "${certPath}/fullchain.pem" \
+        --reloadcmd "${reloadCmd}" 2>&1 || true
+    
+    # Verify certificate files exist (don't rely on exit code - reloadcmd failure causes non-zero)
+    if [[ ! -f "${certPath}/fullchain.pem" || ! -f "${certPath}/privkey.pem" ]]; then
+        LOGE "Certificate files not found after installation"
+        # Cleanup acme.sh data for both IPv4 and IPv6 if specified
+        rm -rf ~/.acme.sh/${server_ip} 2>/dev/null
+        [[ -n "$ipv6_addr" ]] && rm -rf ~/.acme.sh/${ipv6_addr} 2>/dev/null
+        rm -rf ${certPath} 2>/dev/null
+        return 1
+    fi
+    
+    LOGI "Certificate files installed successfully"
+    
+    # enable auto-renew
+    ~/.acme.sh/acme.sh --upgrade --auto-upgrade >/dev/null 2>&1
+    chmod 600 $certPath/privkey.pem 2>/dev/null
+    chmod 644 $certPath/fullchain.pem 2>/dev/null
+    
     # Set certificate paths for the panel
-    local webCertFile="/root/cert/${server_ip}/fullchain.pem"
-    local webKeyFile="/root/cert/${server_ip}/privkey.pem"
+    local webCertFile="${certPath}/fullchain.pem"
+    local webKeyFile="${certPath}/privkey.pem"
     
     if [[ -f "$webCertFile" && -f "$webKeyFile" ]]; then
-        /usr/local/x-ui/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+        ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
         LOGI "Certificate configured for panel"
         LOGI "  - Certificate File: $webCertFile"
         LOGI "  - Private Key File: $webKeyFile"
+        LOGI "  - Validity: ~6 days (auto-renews via acme.sh cron)"
         echo -e "${green}Access URL: https://${server_ip}:${existing_port}${existing_webBasePath}${plain}"
         LOGI "Panel will restart to apply SSL certificate..."
         restart
@@ -1279,8 +1258,8 @@ ssl_cert_issue_for_ip() {
 }
 
 ssl_cert_issue() {
-    local existing_webBasePath=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
-    local existing_port=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
+    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
+    local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
     # check for acme.sh first
     if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then
         echo "acme.sh could not be found. we will install it"
@@ -1430,12 +1409,14 @@ ssl_cert_issue() {
     if [ $? -ne 0 ]; then
         LOGE "Auto renew failed, certificate details:"
         ls -lah cert/*
-        chmod 755 $certPath/*
+        chmod 600 $certPath/privkey.pem
+        chmod 644 $certPath/fullchain.pem
         exit 1
     else
         LOGI "Auto renew succeeded, certificate details:"
         ls -lah cert/*
-        chmod 755 $certPath/*
+        chmod 600 $certPath/privkey.pem
+        chmod 644 $certPath/fullchain.pem
     fi
 
     # Prompt user to set panel paths after successful certificate installation
@@ -1445,7 +1426,7 @@ ssl_cert_issue() {
         local webKeyFile="/root/cert/${domain}/privkey.pem"
 
         if [[ -f "$webCertFile" && -f "$webKeyFile" ]]; then
-            /usr/local/x-ui/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+            ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
             LOGI "Panel paths set for domain: $domain"
             LOGI "  - Certificate File: $webCertFile"
             LOGI "  - Private Key File: $webKeyFile"
@@ -1460,8 +1441,8 @@ ssl_cert_issue() {
 }
 
 ssl_cert_issue_CF() {
-    local existing_webBasePath=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
-    local existing_port=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
+    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
+    local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
     LOGI "****** Instructions for Use ******"
     LOGI "Follow the steps below to complete the process:"
     LOGI "1. Cloudflare Registered E-mail."
@@ -1575,7 +1556,8 @@ ssl_cert_issue_CF() {
         else
             LOGI "The certificate is installed and auto-renewal is turned on. Specific information is as follows:"
             ls -lah ${certPath}/*
-            chmod 755 ${certPath}/*
+            chmod 600 ${certPath}/privkey.pem
+            chmod 644 ${certPath}/fullchain.pem
         fi
 
         # Prompt user to set panel paths after successful certificate installation
@@ -1585,7 +1567,7 @@ ssl_cert_issue_CF() {
             local webKeyFile="${certPath}/privkey.pem"
 
             if [[ -f "$webCertFile" && -f "$webKeyFile" ]]; then
-                /usr/local/x-ui/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
+                ${xui_folder}/x-ui cert -webCert "$webCertFile" -webCertKey "$webKeyFile"
                 LOGI "Panel paths set for domain: $CF_Domain"
                 LOGI "  - Certificate File: $webCertFile"
                 LOGI "  - Private Key File: $webKeyFile"
@@ -2049,11 +2031,11 @@ SSH_port_forwarding() {
             break
         fi
     done
-    local existing_webBasePath=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
-    local existing_port=$(/usr/local/x-ui/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
-    local existing_listenIP=$(/usr/local/x-ui/x-ui setting -getListen true | grep -Eo 'listenIP: .+' | awk '{print $2}')
-    local existing_cert=$(/usr/local/x-ui/x-ui setting -getCert true | grep -Eo 'cert: .+' | awk '{print $2}')
-    local existing_key=$(/usr/local/x-ui/x-ui setting -getCert true | grep -Eo 'key: .+' | awk '{print $2}')
+    local existing_webBasePath=$(${xui_folder}/x-ui setting -show true | grep -Eo 'webBasePath: .+' | awk '{print $2}')
+    local existing_port=$(${xui_folder}/x-ui setting -show true | grep -Eo 'port: .+' | awk '{print $2}')
+    local existing_listenIP=$(${xui_folder}/x-ui setting -getListen true | grep -Eo 'listenIP: .+' | awk '{print $2}')
+    local existing_cert=$(${xui_folder}/x-ui setting -getCert true | grep -Eo 'cert: .+' | awk '{print $2}')
+    local existing_key=$(${xui_folder}/x-ui setting -getCert true | grep -Eo 'key: .+' | awk '{print $2}')
 
     local config_listenIP=""
     local listen_choice=""
@@ -2094,7 +2076,7 @@ SSH_port_forwarding() {
             config_listenIP="127.0.0.1"
             [[ "$listen_choice" == "2" ]] && read -rp "Enter custom IP to listen on: " config_listenIP
 
-            /usr/local/x-ui/x-ui setting -listenIP "${config_listenIP}" >/dev/null 2>&1
+            ${xui_folder}/x-ui setting -listenIP "${config_listenIP}" >/dev/null 2>&1
             echo -e "${green}listen IP has been set to ${config_listenIP}.${plain}"
             echo -e "\n${green}SSH Port Forwarding Configuration:${plain}"
             echo -e "Standard SSH command:"
@@ -2110,7 +2092,7 @@ SSH_port_forwarding() {
         fi
         ;;
     2)
-        /usr/local/x-ui/x-ui setting -listenIP 0.0.0.0 >/dev/null 2>&1
+        ${xui_folder}/x-ui setting -listenIP 0.0.0.0 >/dev/null 2>&1
         echo -e "${green}Listen IP has been cleared.${plain}"
         restart
         ;;
