@@ -9,9 +9,15 @@ RUN apk --no-cache --update add \
   build-base \
   gcc \
   curl \
-  unzip
+  unzip \
+  dos2unix
+
+
 
 COPY . .
+
+RUN dos2unix DockerInit.sh DockerEntrypoint.sh x-ui.sh \
+  && chmod +x DockerInit.sh DockerEntrypoint.sh x-ui.sh
 
 ENV CGO_ENABLED=1
 ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
