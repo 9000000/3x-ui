@@ -169,18 +169,16 @@ class KcpStreamSettings extends CommonClass {
         tti = 20,
         uplinkCapacity = 5,
         downlinkCapacity = 20,
-        congestion = false,
-        readBufferSize = 1,
-        writeBufferSize = 1,
+        cwndMultiplier = 0,
+        maxSendingWindow = 0,
     ) {
         super();
         this.mtu = mtu;
         this.tti = tti;
         this.upCap = uplinkCapacity;
         this.downCap = downlinkCapacity;
-        this.congestion = congestion;
-        this.readBuffer = readBufferSize;
-        this.writeBuffer = writeBufferSize;
+        this.cwndMultiplier = cwndMultiplier;
+        this.maxSendingWindow = maxSendingWindow;
     }
 
     static fromJson(json = {}) {
@@ -189,9 +187,8 @@ class KcpStreamSettings extends CommonClass {
             json.tti,
             json.uplinkCapacity,
             json.downlinkCapacity,
-            json.congestion,
-            json.readBufferSize,
-            json.writeBufferSize,
+            json.cwndMultiplier,
+            json.maxSendingWindow,
         );
     }
 
@@ -201,9 +198,8 @@ class KcpStreamSettings extends CommonClass {
             tti: this.tti,
             uplinkCapacity: this.upCap,
             downlinkCapacity: this.downCap,
-            congestion: this.congestion,
-            readBufferSize: this.readBuffer,
-            writeBufferSize: this.writeBuffer,
+            cwndMultiplier: this.cwndMultiplier,
+            maxSendingWindow: this.maxSendingWindow,
         };
     }
 }
@@ -579,6 +575,8 @@ class UdpMask extends CommonClass {
             case 'header-dns':
             case 'xdns':
                 return { domain: settings.domain || '' };
+            case 'xicmp':
+                return { ip: settings.ip || '', id: settings.id ?? 0 };
             case 'mkcp-original':
             case 'header-dtls':
             case 'header-srtp':
@@ -586,6 +584,12 @@ class UdpMask extends CommonClass {
             case 'header-wechat':
             case 'header-wireguard':
                 return {}; // No settings needed
+            case 'header-custom':
+                return { client: [], server: [] };
+            case 'noise':
+                return { reset: 0, noise: [] };
+            case 'sudoku':
+                return { ascii: '', customTable: '', customTables: [], paddingMin: 0, paddingMax: 0 };
             default:
                 return settings;
         }
@@ -782,8 +786,8 @@ class Outbound extends CommonClass {
     }
 
     canEnableTls() {
-        if (![Protocols.VMess, Protocols.VLESS, Protocols.Trojan, Protocols.Shadowsocks, Protocols.Hysteria].includes(this.protocol)) return false;
-        if (this.protocol === Protocols.Hysteria) return this.stream.network === 'hysteria';
+        if (this.protocol === Protocols.Hysteria) return true;
+        if (![Protocols.VMess, Protocols.VLESS, Protocols.Trojan, Protocols.Shadowsocks].includes(this.protocol)) return false;
         return ["tcp", "ws", "http", "grpc", "httpupgrade", "xhttp"].includes(this.stream.network);
     }
 
