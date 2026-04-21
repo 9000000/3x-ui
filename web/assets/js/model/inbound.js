@@ -1073,8 +1073,9 @@ class UdpMask extends XrayCommonClass {
             case 'mkcp-aes128gcm':
                 return { password: settings.password || '' };
             case 'header-dns':
-            case 'xdns':
                 return { domain: settings.domain || '' };
+            case 'xdns':
+                return { domains: Array.isArray(settings.domains) ? settings.domains : [] };
             case 'xicmp':
                 return { ip: settings.ip || '', id: settings.id ?? 0 };
             case 'mkcp-original':
@@ -1252,27 +1253,42 @@ class Sniffing extends XrayCommonClass {
         enabled = false,
         destOverride = ['http', 'tls', 'quic', 'fakedns'],
         metadataOnly = false,
-        routeOnly = false) {
+        routeOnly = false,
+        ipsExcluded = [],
+        domainsExcluded = []) {
         super();
         this.enabled = enabled;
-        this.destOverride = destOverride;
+        this.destOverride = Array.isArray(destOverride) && destOverride.length > 0 ? destOverride : ['http', 'tls', 'quic', 'fakedns'];
         this.metadataOnly = metadataOnly;
         this.routeOnly = routeOnly;
+        this.ipsExcluded = Array.isArray(ipsExcluded) ? ipsExcluded : [];
+        this.domainsExcluded = Array.isArray(domainsExcluded) ? domainsExcluded : [];
     }
 
     static fromJson(json = {}) {
         let destOverride = ObjectUtil.clone(json.destOverride);
-        if (!ObjectUtil.isEmpty(destOverride) && !ObjectUtil.isArrEmpty(destOverride)) {
-            if (ObjectUtil.isEmpty(destOverride[0])) {
-                destOverride = ['http', 'tls', 'quic', 'fakedns'];
-            }
+        if (ObjectUtil.isEmpty(destOverride) || ObjectUtil.isArrEmpty(destOverride) || ObjectUtil.isEmpty(destOverride[0])) {
+            destOverride = ['http', 'tls', 'quic', 'fakedns'];
         }
         return new Sniffing(
             !!json.enabled,
             destOverride,
             json.metadataOnly,
             json.routeOnly,
+            json.ipsExcluded || [],
+            json.domainsExcluded || [],
         );
+    }
+
+    toJson() {
+        return {
+            enabled: this.enabled,
+            destOverride: this.destOverride,
+            metadataOnly: this.metadataOnly,
+            routeOnly: this.routeOnly,
+            ipsExcluded: this.ipsExcluded.length > 0 ? this.ipsExcluded : undefined,
+            domainsExcluded: this.domainsExcluded.length > 0 ? this.domainsExcluded : undefined,
+        };
     }
 }
 
@@ -2723,29 +2739,60 @@ Inbound.TunSettings = class extends Inbound.Settings {
     constructor(
         protocol,
         name = 'xray0',
-        mtu = 1500,
-        userLevel = 0
+        mtu = [1500, 1280],
+        gateway = [],
+        dns = [],
+        userLevel = 0,
+        autoSystemRoutingTable = [],
+        autoOutboundsInterface = 'auto'
     ) {
         super(protocol);
         this.name = name;
-        this.mtu = mtu;
+        this.mtu = this._normalizeMtu(mtu);
+        this.gateway = Array.isArray(gateway) ? gateway : [];
+        this.dns = Array.isArray(dns) ? dns : [];
         this.userLevel = userLevel;
+        this.autoSystemRoutingTable = Array.isArray(autoSystemRoutingTable) ? autoSystemRoutingTable : [];
+        this.autoOutboundsInterface = autoOutboundsInterface;
+    }
+
+    _normalizeMtu(mtu) {
+        if (!Array.isArray(mtu)) {
+            const single = Number(mtu) || 1500;
+            return [single, single];
+        }
+        if (mtu.length === 0) {
+            return [1500, 1280];
+        }
+        if (mtu.length === 1) {
+            const single = Number(mtu[0]) || 1500;
+            return [single, single];
+        }
+        return [Number(mtu[0]) || 1500, Number(mtu[1]) || 1280];
     }
 
     static fromJson(json = {}) {
         return new Inbound.TunSettings(
             Protocols.TUN,
             json.name ?? 'xray0',
-            json.mtu ?? json.MTU ?? 1500,
-            json.userLevel ?? 0
+            json.mtu ?? json.MTU ?? [1500, 1280],
+            json.gateway ?? json.Gateway ?? [],
+            json.dns ?? json.DNS ?? [],
+            json.userLevel ?? 0,
+            json.autoSystemRoutingTable ?? [],
+            Object.prototype.hasOwnProperty.call(json, 'autoOutboundsInterface') ? json.autoOutboundsInterface : 'auto'
         );
     }
 
     toJson() {
         return {
             name: this.name || 'xray0',
-            mtu: this.mtu || 1500,
+            mtu: this._normalizeMtu(this.mtu),
+            gateway: this.gateway,
+            dns: this.dns,
             userLevel: this.userLevel || 0,
+            autoSystemRoutingTable: this.autoSystemRoutingTable,
+            autoOutboundsInterface: this.autoOutboundsInterface,
         };
     }
 };
