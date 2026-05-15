@@ -1,0 +1,29 @@
+# Git
+.git
+.github
+.gitignore
+.gitattributes
+
+# IDEs and Editors
+.vscode
+.idea
+*.swp
+*.swo
+
+# Node modules & Build outputs
+frontend/node_modules
+web/dist
+
+# Go build artifacts
+build/
+x-ui
+x-ui.db
+*.db
+
+# Local env files
+.env
+.env.local
+
+# Logs
+logs
+*.log
