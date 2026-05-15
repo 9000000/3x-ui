@@ -952,6 +952,7 @@
       "change_password": "⚙️🔑 Şifre",
       "change_email": "⚙️📧 E-posta",
       "change_comment": "⚙️💬 Yorum",
+      "change_flow": "⚙️🚦 Akış",
       "ResetAllTraffics": "Tüm Trafikleri Sıfırla",
       "SortedTrafficUsageReport": "Sıralı Trafik Kullanım Raporu"
     },
