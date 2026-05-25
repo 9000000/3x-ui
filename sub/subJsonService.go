@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"time"
 
 	"github.com/mhsanaei/3x-ui/v3/database/model"
 	"github.com/mhsanaei/3x-ui/v3/logger"
@@ -125,14 +126,13 @@ func (s *SubJsonService) GetJson(subId string, host string) (string, string, err
 	}
 
 	// Prepare statistics
+	now := time.Now().UnixMilli()
 	for index, clientTraffic := range clientTraffics {
 		if index == 0 {
 			traffic.Up = clientTraffic.Up
 			traffic.Down = clientTraffic.Down
 			traffic.Total = clientTraffic.Total
-			if clientTraffic.ExpiryTime > 0 {
-				traffic.ExpiryTime = clientTraffic.ExpiryTime
-			}
+			traffic.ExpiryTime = subscriptionExpiryFromClient(now, clientTraffic.ExpiryTime)
 		} else {
 			traffic.Up += clientTraffic.Up
 			traffic.Down += clientTraffic.Down
@@ -141,7 +141,8 @@ func (s *SubJsonService) GetJson(subId string, host string) (string, string, err
 			} else {
 				traffic.Total += clientTraffic.Total
 			}
-			if clientTraffic.ExpiryTime != traffic.ExpiryTime {
+			normalized := subscriptionExpiryFromClient(now, clientTraffic.ExpiryTime)
+			if normalized != traffic.ExpiryTime {
 				traffic.ExpiryTime = 0
 			}
 		}
@@ -174,7 +175,8 @@ func (s *SubJsonService) getConfig(inbound *model.Inbound, client model.Client, 
 	}
 
 	externalProxies, ok := stream["externalProxy"].([]any)
-	if !ok || len(externalProxies) == 0 {
+	hasExternalProxy := ok && len(externalProxies) > 0
+	if !hasExternalProxy {
 		externalProxies = []any{
 			map[string]any{
 				"forceTls": "same",
@@ -191,7 +193,7 @@ func (s *SubJsonService) getConfig(inbound *model.Inbound, client model.Client, 
 		extPrxy := ep.(map[string]any)
 		inbound.Listen = extPrxy["dest"].(string)
 		inbound.Port = int(extPrxy["port"].(float64))
-		newStream := stream
+		newStream := cloneStreamForExternalProxy(stream)
 		switch extPrxy["forceTls"].(string) {
 		case "tls":
 			if newStream["security"] != "tls" {
@@ -203,6 +205,10 @@ func (s *SubJsonService) getConfig(inbound *model.Inbound, client model.Client, 
 				newStream["security"] = "none"
 				delete(newStream, "tlsSettings")
 			}
+		}
+		security, _ := newStream["security"].(string)
+		if hasExternalProxy {
+			applyExternalProxyTLSToStream(extPrxy, newStream, security)
 		}
 		streamSettings, _ := json.MarshalIndent(newStream, "", "  ")
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"strings"
+	"time"
 
 	"github.com/goccy/go-json"
 	yaml "github.com/goccy/go-yaml"
@@ -63,14 +64,13 @@ func (s *SubClashService) GetClash(subId string, host string) (string, string, e
 		return "", "", nil
 	}
 
+	now := time.Now().UnixMilli()
 	for index, clientTraffic := range clientTraffics {
 		if index == 0 {
 			traffic.Up = clientTraffic.Up
 			traffic.Down = clientTraffic.Down
 			traffic.Total = clientTraffic.Total
-			if clientTraffic.ExpiryTime > 0 {
-				traffic.ExpiryTime = clientTraffic.ExpiryTime
-			}
+			traffic.ExpiryTime = subscriptionExpiryFromClient(now, clientTraffic.ExpiryTime)
 		} else {
 			traffic.Up += clientTraffic.Up
 			traffic.Down += clientTraffic.Down
@@ -79,7 +79,8 @@ func (s *SubClashService) GetClash(subId string, host string) (string, string, e
 			} else {
 				traffic.Total += clientTraffic.Total
 			}
-			if clientTraffic.ExpiryTime != traffic.ExpiryTime {
+			normalized := subscriptionExpiryFromClient(now, clientTraffic.ExpiryTime)
+			if normalized != traffic.ExpiryTime {
 				traffic.ExpiryTime = 0
 			}
 		}
@@ -122,7 +123,8 @@ func (s *SubClashService) getProxies(inbound *model.Inbound, client model.Client
 		defaultDest = host
 	}
 	externalProxies, ok := stream["externalProxy"].([]any)
-	if !ok || len(externalProxies) == 0 {
+	hasExternalProxy := ok && len(externalProxies) > 0
+	if !hasExternalProxy {
 		externalProxies = []any{map[string]any{
 			"forceTls": "same",
 			"dest":     defaultDest,
@@ -138,7 +140,7 @@ func (s *SubClashService) getProxies(inbound *model.Inbound, client model.Client
 		workingInbound := *inbound
 		workingInbound.Listen = extPrxy["dest"].(string)
 		workingInbound.Port = int(extPrxy["port"].(float64))
-		workingStream := cloneMap(stream)
+		workingStream := cloneStreamForExternalProxy(stream)
 
 		switch extPrxy["forceTls"].(string) {
 		case "tls":
@@ -152,6 +154,10 @@ func (s *SubClashService) getProxies(inbound *model.Inbound, client model.Client
 				delete(workingStream, "tlsSettings")
 				delete(workingStream, "realitySettings")
 			}
+		}
+		security, _ := workingStream["security"].(string)
+		if hasExternalProxy {
+			applyExternalProxyTLSToStream(extPrxy, workingStream, security)
 		}
 
 		proxy := s.buildProxy(&workingInbound, client, workingStream, extPrxy["remark"].(string))
@@ -359,6 +365,53 @@ func (s *SubClashService) applyTransport(proxy map[string]any, network string, s
 			proxy["grpc-opts"] = grpcOpts
 		}
 		return true
+	case "httpupgrade":
+		proxy["network"] = "httpupgrade"
+		hu, _ := stream["httpupgradeSettings"].(map[string]any)
+		opts := map[string]any{}
+		if hu != nil {
+			if path, ok := hu["path"].(string); ok && path != "" {
+				opts["path"] = path
+			}
+			host := ""
+			if v, ok := hu["host"].(string); ok && v != "" {
+				host = v
+			} else if headers, ok := hu["headers"].(map[string]any); ok {
+				host = searchHost(headers)
+			}
+			if host != "" {
+				opts["headers"] = map[string]any{"Host": host}
+			}
+		}
+		if len(opts) > 0 {
+			proxy["http-upgrade-opts"] = opts
+		}
+		return true
+	case "xhttp":
+		proxy["network"] = "xhttp"
+		xhttp, _ := stream["xhttpSettings"].(map[string]any)
+		opts := map[string]any{}
+		if xhttp != nil {
+			if path, ok := xhttp["path"].(string); ok && path != "" {
+				opts["path"] = path
+			}
+			host := ""
+			if v, ok := xhttp["host"].(string); ok && v != "" {
+				host = v
+			} else if headers, ok := xhttp["headers"].(map[string]any); ok {
+				host = searchHost(headers)
+			}
+			if host != "" {
+				opts["host"] = host
+			}
+			if mode, ok := xhttp["mode"].(string); ok && mode != "" {
+				opts["mode"] = mode
+			}
+		}
+		if len(opts) > 0 {
+			proxy["xhttp-opts"] = opts
+		}
+		return true
 	default:
 		return false
 	}
@@ -382,6 +435,17 @@ func (s *SubClashService) applySecurity(proxy map[string]any, security string, s
 			}
 			if fingerprint, ok := tlsSettings["fingerprint"].(string); ok && fingerprint != "" {
 				proxy["client-fingerprint"] = fingerprint
+			}
+			if alpn, ok := externalProxyALPNList(tlsSettings["alpn"]); ok {
+				out := make([]string, 0, len(alpn))
+				for _, item := range alpn {
+					if s, ok := item.(string); ok && s != "" {
+						out = append(out, s)
+					}
+				}
+				if len(out) > 0 {
+					proxy["alpn"] = out
+				}
 			}
 		}
 		return true
