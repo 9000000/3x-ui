@@ -14,7 +14,7 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "gen:api": "node scripts/build-openapi.mjs"
+    "gen:api": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/build-openapi.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^6.2.3",
@@ -34,6 +34,7 @@
     "react-dom": "^19.2.6",
     "react-i18next": "^17.0.8",
     "react-router-dom": "^7.15.1",
+    "recharts": "^3.8.1",
     "swagger-ui-react": "^5.32.6"
   },
   "devDependencies": {
