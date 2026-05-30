@@ -9,10 +9,11 @@ export class AllSetting {
   webBasePath = '/';
   sessionMaxAge = 360;
   trustedProxyCIDRs = '127.0.0.1/32,::1/128';
+  panelProxy = '';
   pageSize = 25;
   expireDiff = 0;
   trafficDiff = 0;
-  remarkModel = '-ieo';
+  remarkModel = '-io';
   datepicker: 'gregorian' | 'jalalian' = 'gregorian';
   tgBotEnable = false;
   tgBotToken = '';
@@ -39,7 +40,7 @@ export class AllSetting {
   subPort = 2096;
   subPath = '/sub/';
   subJsonPath = '/json/';
-  subClashEnable = true;
+  subClashEnable = false;
   subClashPath = '/clash/';
   subDomain = '';
   externalTrafficInformEnable = false;

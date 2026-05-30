@@ -5,10 +5,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +24,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var reportedRemoteTagConflict sync.Map
 
 type InboundService struct {
 	xrayApi         xray.XrayAPI
@@ -452,7 +456,6 @@ func (s *InboundService) normalizeStreamSettings(inbound *model.Inbound) {
 		model.Trojan:      true,
 		model.Shadowsocks: true,
 		model.Hysteria:    true,
-		model.Hysteria2:   true,
 	}
 
 	if !protocolsWithStream[inbound.Protocol] {
@@ -468,12 +471,12 @@ func (s *InboundService) AddInbound(inbound *model.Inbound) (*model.Inbound, boo
 	// Normalize streamSettings based on protocol
 	s.normalizeStreamSettings(inbound)
 
-	exist, err := s.checkPortConflict(inbound, 0)
+	conflict, err := s.checkPortConflict(inbound, 0)
 	if err != nil {
 		return inbound, false, err
 	}
-	if exist {
-		return inbound, false, common.NewError("Port already exists:", inbound.Port)
+	if conflict != nil {
+		return inbound, false, common.NewError(conflict.String())
 	}
 
 	inbound.Tag, err = s.resolveInboundTag(inbound, 0)
@@ -528,7 +531,7 @@ func (s *InboundService) AddInbound(inbound *model.Inbound) (*model.Inbound, boo
 			if client.Email == "" {
 				return inbound, false, common.NewError("empty client ID")
 			}
-		case "hysteria", "hysteria2":
+		case "hysteria":
 			if client.Auth == "" {
 				return inbound, false, common.NewError("empty client ID")
 			}
@@ -736,12 +739,12 @@ func (s *InboundService) UpdateInbound(inbound *model.Inbound) (*model.Inbound, 
 	// Normalize streamSettings based on protocol
 	s.normalizeStreamSettings(inbound)
 
-	exist, err := s.checkPortConflict(inbound, inbound.Id)
+	conflict, err := s.checkPortConflict(inbound, inbound.Id)
 	if err != nil {
 		return inbound, false, err
 	}
-	if exist {
-		return inbound, false, common.NewError("Port already exists:", inbound.Port)
+	if conflict != nil {
+		return inbound, false, common.NewError(conflict.String())
 	}
 
 	oldInbound, err := s.GetInbound(inbound.Id)
@@ -1071,7 +1074,7 @@ func (s *InboundService) generateRandomCredential(targetProtocol model.Protocol)
 	}
 }
 
-func (s *InboundService) buildTargetClientFromSource(source model.Client, targetProtocol model.Protocol, email string, flow string) (model.Client, error) {
+func (s *InboundService) buildTargetClientFromSource(source model.Client, targetInbound *model.Inbound, email string, flow string) (model.Client, error) {
 	nowTs := time.Now().UnixMilli()
 	target := source
 	target.Email = email
@@ -1083,12 +1086,14 @@ func (s *InboundService) buildTargetClientFromSource(source model.Client, target
 	target.Auth = ""
 	target.Flow = ""
 
+	targetProtocol := targetInbound.Protocol
 	switch targetProtocol {
 	case model.VMESS:
 		target.ID = s.generateRandomCredential(targetProtocol)
 	case model.VLESS:
 		target.ID = s.generateRandomCredential(targetProtocol)
-		if flow == "xtls-rprx-vision" || flow == "xtls-rprx-vision-udp443" {
+		if (flow == "xtls-rprx-vision" || flow == "xtls-rprx-vision-udp443") &&
+			inboundCanEnableTlsFlow(string(targetProtocol), targetInbound.StreamSettings) {
 			target.Flow = flow
 		}
 	case model.Trojan, model.Shadowsocks:
@@ -1189,7 +1194,7 @@ func (s *InboundService) CopyInboundClients(targetInboundID int, sourceInboundID
 		}
 
 		targetEmail := s.nextAvailableCopiedEmail(originalEmail, targetInboundID, occupiedEmails)
-		targetClient, buildErr := s.buildTargetClientFromSource(sourceClient, targetInbound.Protocol, targetEmail, flow)
+		targetClient, buildErr := s.buildTargetClientFromSource(sourceClient, targetInbound, targetEmail, flow)
 		if buildErr != nil {
 			result.Errors = append(result.Errors, fmt.Sprintf("%s: %v", originalEmail, buildErr))
 			continue
@@ -1255,9 +1260,15 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 		Find(&central).Error; err != nil {
 		return false, err
 	}
-	tagToCentral := make(map[string]*model.Inbound, len(central))
+	// Index under both stored tag and the prefix-stripped form so a snap's
+	// bare tag resolves whether or not we rewrote it with n<id>- at create.
+	tagToCentral := make(map[string]*model.Inbound, len(central)*2)
+	prefix := nodeTagPrefix(&nodeID)
 	for i := range central {
 		tagToCentral[central[i].Tag] = &central[i]
+		if prefix != "" && strings.HasPrefix(central[i].Tag, prefix) {
+			tagToCentral[strings.TrimPrefix(central[i].Tag, prefix)] = &central[i]
+		}
 	}
 
 	var centralClientStats []xray.ClientTraffic
@@ -1314,10 +1325,44 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 
 		c, ok := tagToCentral[snapIb.Tag]
 		if !ok {
+			// Try snap.Tag first; on collision fall back to the n<id>-
+			// prefixed form so local+node can both own the same port.
+			pickFreeTag := func() (string, error) {
+				candidates := []string{snapIb.Tag}
+				if prefix != "" && !strings.HasPrefix(snapIb.Tag, prefix) {
+					candidates = append(candidates, prefix+snapIb.Tag)
+				}
+				for _, t := range candidates {
+					var owner model.Inbound
+					err := tx.Where("tag = ?", t).First(&owner).Error
+					if errors.Is(err, gorm.ErrRecordNotFound) {
+						return t, nil
+					}
+					if err != nil {
+						return "", err
+					}
+				}
+				return "", nil
+			}
+			chosenTag, err := pickFreeTag()
+			if err != nil {
+				logger.Warningf("setRemoteTraffic: check tag %q failed: %v", snapIb.Tag, err)
+				continue
+			}
+			if chosenTag == "" {
+				key := fmt.Sprintf("%d:%s", nodeID, snapIb.Tag)
+				if _, seen := reportedRemoteTagConflict.LoadOrStore(key, struct{}{}); !seen {
+					logger.Warningf(
+						"setRemoteTraffic: tag %q from node %d collides with an existing inbound even after the n%d- prefix — skipping (rename one side to remove the duplicate)",
+						snapIb.Tag, nodeID, nodeID,
+					)
+				}
+				continue
+			}
 			newIb := model.Inbound{
 				UserId:         defaultUserId,
 				NodeID:         &nodeID,
-				Tag:            snapIb.Tag,
+				Tag:            chosenTag,
 				Listen:         snapIb.Listen,
 				Port:           snapIb.Port,
 				Protocol:       snapIb.Protocol,
@@ -1333,10 +1378,13 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 				Down:           snapIb.Down,
 			}
 			if err := tx.Create(&newIb).Error; err != nil {
-				logger.Warning("setRemoteTraffic: create central inbound for tag", snapIb.Tag, "failed:", err)
+				logger.Warningf("setRemoteTraffic: create central inbound for tag %q failed: %v", snapIb.Tag, err)
 				continue
 			}
 			tagToCentral[snapIb.Tag] = &newIb
+			if newIb.Tag != snapIb.Tag {
+				tagToCentral[newIb.Tag] = &newIb
+			}
 			structuralChange = true
 			continue
 		}
@@ -1384,6 +1432,9 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 		}
 		if err := tx.Where("inbound_id = ?", c.Id).
 			Delete(&xray.ClientTraffic{}).Error; err != nil {
+			return false, err
+		}
+		if err := s.clientService.DetachInbound(tx, c.Id); err != nil {
 			return false, err
 		}
 		if err := tx.Where("id = ?", c.Id).
@@ -1454,10 +1505,13 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 			}
 
 			if err := tx.Exec(
-				`UPDATE client_traffics
-				 SET up = ?, down = ?, enable = ?, total = ?, expiry_time = ?, reset = ?,
-				     last_online = MAX(last_online, ?)
-				 WHERE email = ?`,
+				fmt.Sprintf(
+					`UPDATE client_traffics
+					 SET up = ?, down = ?, enable = ?, total = ?, expiry_time = ?, reset = ?,
+					     last_online = %s
+					 WHERE email = ?`,
+					database.GreatestExpr("last_online", "?"),
+				),
 				cs.Up, cs.Down, cs.Enable, cs.Total, cs.ExpiryTime, cs.Reset,
 				cs.LastOnline, cs.Email,
 			).Error; err != nil {
@@ -1509,7 +1563,7 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 
 		clients, gcErr := s.GetClients(snapIb)
 		if gcErr != nil {
-			logger.Warning("setRemoteTraffic: parse clients for tag", snapIb.Tag, "failed:", gcErr)
+			logger.Warningf("setRemoteTraffic: parse clients for tag %q failed: %v", snapIb.Tag, gcErr)
 			continue
 		}
 		csEnableByEmail := make(map[string]bool, len(snapIb.ClientStats))
@@ -1527,7 +1581,7 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 			filtered = append(filtered, clients[i])
 		}
 		if err := s.clientService.SyncInbound(tx, c.Id, filtered); err != nil {
-			logger.Warning("setRemoteTraffic: sync clients for tag", snapIb.Tag, "failed:", err)
+			logger.Warningf("setRemoteTraffic: sync clients for tag %q failed: %v", snapIb.Tag, err)
 		}
 	}
 
@@ -1558,10 +1612,10 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 				continue
 			}
 			if err := tx.Where("email = ?", email).Delete(&model.ClientRecord{}).Error; err != nil {
-				logger.Warning("setRemoteTraffic: delete ClientRecord", email, "failed:", err)
+				logger.Warningf("setRemoteTraffic: delete ClientRecord %q failed: %v", email, err)
 			}
 			if err := tx.Where("email = ?", email).Delete(&xray.ClientTraffic{}).Error; err != nil {
-				logger.Warning("setRemoteTraffic: delete ClientTraffic", email, "failed:", err)
+				logger.Warningf("setRemoteTraffic: delete ClientTraffic %q failed: %v", email, err)
 			}
 			structuralChange = true
 		}
@@ -1746,11 +1800,12 @@ func (s *InboundService) adjustTraffics(tx *gorm.DB, dbClientTraffics []*xray.Cl
 							break
 						}
 					}
-					// Backfill created_at and updated_at
 					if _, ok := c["created_at"]; !ok {
 						c["created_at"] = time.Now().Unix() * 1000
 					}
-					c["updated_at"] = time.Now().Unix() * 1000
+					if _, ok := c["updated_at"]; !ok {
+						c["updated_at"] = time.Now().Unix() * 1000
+					}
 					newClients = append(newClients, any(c))
 				}
 				settings["clients"] = newClients
@@ -2415,6 +2470,27 @@ func (s *InboundService) ResetInboundTraffic(id int) error {
 	})
 }
 
+// EmailsByInbound returns the list of client emails currently configured on
+// an inbound's settings.clients[]. Used by the "delete all clients" flow on
+// the inbounds page, which then feeds the list into ClientService.BulkDelete.
+func (s *InboundService) EmailsByInbound(inboundId int) ([]string, error) {
+	inbound, err := s.GetInbound(inboundId)
+	if err != nil {
+		return nil, err
+	}
+	clients, err := s.GetClients(inbound)
+	if err != nil {
+		return nil, err
+	}
+	emails := make([]string, 0, len(clients))
+	for _, c := range clients {
+		if e := strings.TrimSpace(c.Email); e != "" {
+			emails = append(emails, e)
+		}
+	}
+	return emails, nil
+}
+
 func (s *InboundService) DelDepletedClients(id int) (err error) {
 	db := database.GetDB()
 	tx := db.Begin()
@@ -2913,17 +2989,20 @@ func (s *InboundService) MigrationRequirements() {
 
 	// Fix inbounds based problems
 	var inbounds []*model.Inbound
-	err = tx.Model(model.Inbound{}).Where("protocol IN (?)", []string{"vmess", "vless", "trojan", "shadowsocks", "hysteria", "hysteria2"}).Find(&inbounds).Error
+	err = tx.Model(model.Inbound{}).Where("protocol IN (?)", []string{"vmess", "vless", "trojan", "shadowsocks", "hysteria"}).Find(&inbounds).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return
 	}
 	for inbound_index := range inbounds {
 		settings := map[string]any{}
 		json.Unmarshal([]byte(inbounds[inbound_index].Settings), &settings)
+		if raw, exists := settings["clients"]; exists && raw == nil {
+			settings["clients"] = []any{}
+		}
 		clients, ok := settings["clients"].([]any)
 		if ok {
 			// Fix Client configuration problems
-			var newClients []any
+			newClients := make([]any, 0, len(clients))
 			hasVisionFlow := false
 			for client_index := range clients {
 				c := clients[client_index].(map[string]any)

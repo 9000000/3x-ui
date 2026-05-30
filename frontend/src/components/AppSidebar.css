@@ -18,7 +18,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 14px 14px;
+  padding: 14px 16px 14px 24px;
   border-bottom: 1px solid var(--ant-color-border-secondary);
   user-select: none;
 }
@@ -32,29 +32,12 @@
 
 .brand-block {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   min-width: 0;
   line-height: 1.1;
 }
 
-.brand-text {
-  display: block;
-}
-
-.brand-version {
-  display: block;
-  width: 100%;
-  text-align: center;
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0;
-  opacity: 0.6;
-  margin-top: 2px;
-}
-
 .sider-brand-collapsed .brand-block {
-  align-items: center;
   flex: 0 0 auto;
 }
 
@@ -206,6 +189,46 @@
   border-top: 1px solid var(--ant-color-border-secondary);
 }
 
+.sider-footer {
+  flex: 0 0 auto;
+  padding: 8px 8px 12px;
+}
+
+.sider-version {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 16px;
+  color: var(--ant-color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.sider-version .anticon {
+  font-size: 16px;
+}
+
+.sider-version:hover,
+.sider-version:focus-visible {
+  color: var(--ant-color-primary);
+  outline: none;
+}
+
+.sider-version.is-collapsed {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.drawer-footer {
+  flex: 0 0 auto;
+  padding: 8px 8px 12px;
+}
+
 @media (max-width: 768px) {
   .drawer-handle {
     display: inline-flex;
@@ -222,6 +245,24 @@
     min-width: 0 !important;
     width: 0 !important;
   }
+}
+
+body.dark .ant-drawer-content,
+body.dark .ant-drawer-body {
+  background-color: #15161a;
+}
+
+html[data-theme="ultra-dark"] body.dark .ant-drawer-content,
+html[data-theme="ultra-dark"] body.dark .ant-drawer-body {
+  background-color: #050507;
+}
+
+body.dark .ant-drawer-body .drawer-menu,
+body.dark .ant-drawer-body .drawer-menu.ant-menu-dark,
+body.dark .ant-drawer-body .drawer-menu .ant-menu-item,
+body.dark .ant-drawer-body .drawer-menu .ant-menu-sub,
+body.dark .ant-drawer-body .drawer-menu .ant-menu-item-group-list {
+  background-color: transparent;
 }
 
 .sider-nav .ant-menu-item-selected,
