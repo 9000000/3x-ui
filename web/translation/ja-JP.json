@@ -246,7 +246,10 @@
       "importDatabaseError": "データベースのインポート中にエラーが発生しました",
       "readDatabaseError": "データベースの読み取り中にエラーが発生しました",
       "getDatabaseError": "データベースの取得中にエラーが発生しました",
-      "getConfigError": "設定ファイルの取得中にエラーが発生しました"
+      "getConfigError": "設定ファイルの取得中にエラーが発生しました",
+      "backupPostgresNote": "このパネルは PostgreSQL で動作しています。「バックアップ」は pg_dump アーカイブ (.dump) をダウンロードし、「復元」は pg_restore で読み込み直します。サーバーに PostgreSQL クライアントツール (pg_dump と pg_restore) がインストールされている必要があります。",
+      "exportDatabasePgDesc": "現在のデータベースの PostgreSQL ダンプ (.dump) を端末にダウンロードするにはクリックしてください。",
+      "importDatabasePgDesc": "PostgreSQL データベースを復元するために .dump ファイルを選択してアップロードするにはクリックしてください。現在のすべてのデータが置き換えられます。"
     },
     "inbounds": {
       "title": "インバウンド",
@@ -261,7 +264,7 @@
       "localPanel": "ローカルパネル",
       "fallbacks": {
         "title": "Fallbacks",
-        "help": "このインバウンドへの接続がどのクライアントにも一致しない場合、別のインバウンドへルーティングします。下から子インバウンドを選ぶと、ルーティング項目（SNI / ALPN / Path / xver）はその子のトランスポートから自動的に埋められます — ほとんどの構成で追加の調整は不要です。各子インバウンドは 127.0.0.1 で security=none をリッスンする必要があります。",
+        "help": "このインバウンドへの接続がどのクライアントにも一致しない場合、別の宛先へルーティングします。下から子インバウンドを選ぶとルーティング項目（SNI / ALPN / Path / xver）がそのトランスポートから自動的に埋められます。あるいは選択を空のままにして Dest を直接指定すると（例: 8080 または 127.0.0.1:8080）、Nginx などの外部サーバーへルーティングできます。各子インバウンドは 127.0.0.1 で security=none をリッスンする必要があります。",
         "empty": "フォールバックはまだありません",
         "add": "フォールバックを追加",
         "pickInbound": "インバウンドを選択",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "メールまたはコメントを検索",
       "attachClientsStatusDisabled": "無効",
       "attachClientsSelectedCount": "{total} 中 {selected} 選択中",
+      "attachExistingClients": "既存のクライアントをアタッチ…",
+      "attachExistingTitle": "「{remark}」に既存のクライアントをアタッチ",
+      "attachExistingDesc": "既存のクライアント({count} 件)をこのインバウンドにアタッチします — 同じ UUID/パスワードと共有トラフィック。すでにアタッチ済みのクライアントはスキップされます。",
+      "attachExistingNoClients": "クライアントがまだありません。先にクライアントを作成してから、ここでアタッチしてください。",
+      "attachExistingStatusAttached": "アタッチ済み",
       "detachClients": "クライアントをデタッチ",
       "detachClientsTitle": "「{remark}」のクライアントをデタッチ",
       "detachClientsDesc": "選択したクライアントをこのインバウンドのみから外します。クライアントレコードは保持されます (完全に削除するには Delete を使用)。ソースには合計 {count} クライアントがあります。",
@@ -439,7 +447,10 @@
         "trafficGetError": "トラフィックの取得中にエラーが発生しました",
         "getNewX25519CertError": "X25519証明書の取得中にエラーが発生しました。",
         "getNewmldsa65Error": "mldsa65証明書の取得中にエラーが発生しました。",
-        "getNewVlessEncError": "VlessEnc証明書の取得中にエラーが発生しました。"
+        "getNewVlessEncError": "VlessEnc証明書の取得中にエラーが発生しました。",
+        "invalidClientField": "クライアント {client}: フィールド {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (他 {count} 件)"
       },
       "form": {
         "moveUp": "上へ",
@@ -544,8 +555,8 @@
         "echKey": "ECH key",
         "echConfig": "ECH config",
         "pinnedPeerCertSha256": "ピン留めピア証明書 SHA-256",
-        "pinnedPeerCertSha256Tip": "ピア証明書の Base64 エンコード SHA-256 ハッシュ。パネルのみ — サーバーの xray 設定には書き込まれませんが、共有リンクには含まれ、クライアントが証明書をピン留めできます。",
-        "pinnedPeerCertSha256Placeholder": "Base64 ハッシュ、カンマ区切り",
+        "pinnedPeerCertSha256Tip": "ピア証明書の SHA-256 ハッシュ（16進数文字列、例: e8e2d3…）、カンマ区切り。パネルのみ — サーバーの xray 設定には書き込まれませんが、共有リンクには含まれ、クライアントが証明書をピン留めできます。",
+        "pinnedPeerCertSha256Placeholder": "16進ハッシュ、カンマ区切り",
         "generateRandomPin": "ランダムハッシュを生成",
         "getNewEchCert": "新しい ECH 証明書を取得",
         "show": "表示",
@@ -559,7 +570,8 @@
         "getNewCert": "新しい証明書を取得",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "新しい Seed を取得"
+        "getNewSeed": "新しい Seed を取得",
+        "listenHelp": "TCP ポートの代わりに Unix ソケットのパス（例: /run/xray/in.sock）を入力してソケットでリッスンすることもできます。その場合はポートを 0 に設定してください。"
       },
       "info": {
         "mode": "モード",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "メール、コメント、sub ID、UUID、パスワード、auth を検索…",
       "filterTitle": "クライアントをフィルタ",
       "clearAllFilters": "すべてクリア",
+      "showingCount": "{total} 件中 {shown} 件を表示",
       "sortOldest": "古い順",
       "sortNewest": "新しい順",
       "sortRecentlyUpdated": "最近更新",
@@ -826,6 +839,12 @@
       "panelVersion": "パネルのバージョン",
       "actions": "操作",
       "probe": "今すぐプローブ",
+      "updatePanel": "パネルを更新",
+      "updateSelected": "選択を更新 ({count})",
+      "updateAvailable": "更新あり",
+      "upToDate": "最新",
+      "updateConfirmTitle": "{count} 個のノードを最新バージョンに更新しますか？",
+      "updateConfirmContent": "選択した各ノードは最新リリースをダウンロードして再起動します。有効かつオンラインのノードのみが更新されます。",
       "testConnection": "接続テスト",
       "connectionOk": "接続OK ({ms} ms)",
       "connectionFailed": "接続に失敗しました",
@@ -847,8 +866,23 @@
         "deleted": "ノードを削除しました",
         "test": "接続テスト",
         "fillRequired": "名前、アドレス、ポート、APIトークンは必須です",
-        "probeFailed": "プローブに失敗しました"
-      }
+        "probeFailed": "プローブに失敗しました",
+        "updateStarted": "パネルの更新を開始しました",
+        "updateResult": "{ok} 個のノードで更新を開始、{failed} 個失敗",
+        "updateNoneEligible": "オンラインで有効なノードを少なくとも1つ選択してください"
+      },
+      "tlsVerifyMode": "TLS 検証",
+      "tlsVerifyModeHint": "パネルがノードの HTTPS 証明書を検証する方法。ピン留めやスキップは自己署名証明書向け（https ノードのみ）。",
+      "tlsVerify": "検証（既定の CA）",
+      "tlsPin": "証明書をピン留め（SHA-256）",
+      "tlsSkip": "検証をスキップ",
+      "tlsSkipWarning": "検証をスキップすると中間者攻撃への保護がなくなり、API トークンが傍受される恐れがあります。証明書のピン留めを推奨します。",
+      "pinnedCert": "ピン留め証明書の SHA-256",
+      "pinnedCertHint": "ノード証明書の SHA-256（base64 または hex）。「取得」でノードから今すぐ読み取れます。",
+      "pinnedCertPlaceholder": "base64 または hex の SHA-256",
+      "fetchPin": "取得",
+      "pinFetched": "ノードの現在の証明書を取得しました",
+      "pinFetchFailed": "証明書を取得できませんでした"
     },
     "settings": {
       "title": "パネル設定",
@@ -1173,6 +1207,8 @@
         "tagRequired": "タグは必須です",
         "tagPlaceholder": "一意のタグ",
         "localIpPlaceholder": "ローカル IP",
+        "dialerProxyPlaceholder": "経由するアウトバウンドを選択",
+        "dialerProxyHint": "このアウトバウンドを別のアウトバウンド（タグ指定）経由で接続し、プロキシチェーンを構成します。直接接続する場合は空のままにします。",
         "addressRequired": "アドレスは必須です",
         "portRequired": "ポートは必須です",
         "optional": "任意",

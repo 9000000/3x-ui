@@ -123,7 +123,7 @@ function vlessFromWire(raw: Raw): VlessOutboundFormSettings {
     port,
     id,
     flow,
-    encryption: (encryption === 'none' ? 'none' : 'none') as 'none',
+    encryption: encryption || 'none',
     reverseTag,
     reverseSniffing,
     testpre: asNumber(raw.testpre, 0),
@@ -266,6 +266,7 @@ function freedomFromWire(raw: Raw): FreedomOutboundFormSettings {
       return (allowed.includes(s) ? s : '') as FreedomOutboundFormSettings['domainStrategy'];
     })(),
     redirect: asString(raw.redirect),
+    userLevel: asNumber(raw.userLevel, 0),
     proxyProtocol: ((): FreedomOutboundFormSettings['proxyProtocol'] => {
       const n = asNumber(raw.proxyProtocol, 0);
       return (n === 1 || n === 2) ? n : 0;
@@ -291,19 +292,20 @@ function blackholeFromWire(raw: Raw) {
 
 function dnsRuleFromWire(raw: unknown): DnsRuleForm {
   const r = asObject(raw);
-  const qtype = Array.isArray(r.qtype)
-    ? r.qtype.map((x) => String(x)).join(',')
-    : typeof r.qtype === 'number'
-      ? String(r.qtype)
-      : asString(r.qtype);
+  const rawQType = r.qType ?? r.qtype;
+  const qType = Array.isArray(rawQType)
+    ? rawQType.map((x) => String(x)).join(',')
+    : typeof rawQType === 'number'
+      ? String(rawQType)
+      : asString(rawQType);
   const domain = Array.isArray(r.domain)
     ? r.domain.map((x) => asString(x)).join(',')
     : asString(r.domain);
   const action = asString(r.action, 'direct');
-  const validAction = ['direct', 'reject', 'rejectIPv4', 'rejectIPv6'].includes(action)
+  const validAction = ['direct', 'drop', 'return', 'hijack'].includes(action)
     ? action
     : 'direct';
-  return { action: validAction as DnsRuleForm['action'], qtype, domain };
+  return { action: validAction as DnsRuleForm['action'], qType, domain, rCode: asNumber(r.rCode, 0) };
 }
 
 function dnsFromWire(raw: Raw): DnsOutboundFormSettings {
@@ -506,11 +508,15 @@ function freedomToWire(s: FreedomOutboundFormSettings) {
   // Legacy semantics: emit fragment only when the user actually populated
   // at least one of the four sub-fields. Defaults like packets='1-3' alone
   // are not enough — the modal's Fragment Switch sets all four together.
-  const fragmentEntries = Object.entries(s.fragment).filter(([, v]) => v !== '' && v != null);
-  const fragmentEnabled = !!s.fragment.length || !!s.fragment.interval || !!s.fragment.maxSplit;
+  // getFieldsValue(true) may omit `fragment` when the switch is off, so the
+  // fallback keeps Object.entries from throwing on undefined (issue #4686).
+  const fragment: Partial<FreedomOutboundFormSettings['fragment']> = s.fragment ?? {};
+  const fragmentEntries = Object.entries(fragment).filter(([, v]) => v !== '' && v != null);
+  const fragmentEnabled = !!fragment.length || !!fragment.interval || !!fragment.maxSplit;
   return {
     domainStrategy: s.domainStrategy || undefined,
     redirect: s.redirect || undefined,
+    userLevel: s.userLevel || undefined,
     proxyProtocol: s.proxyProtocol || undefined,
     fragment: fragmentEnabled ? Object.fromEntries(fragmentEntries) : undefined,
     noises: s.noises.length > 0 ? s.noises : undefined,
@@ -531,16 +537,17 @@ function blackholeToWire(s: { type: '' | 'none' | 'http' }) {
 }
 
 function dnsRuleToWire(r: DnsRuleForm) {
-  const action = ['direct', 'reject', 'rejectIPv4', 'rejectIPv6'].includes(r.action)
+  const action = ['direct', 'drop', 'return', 'hijack'].includes(r.action)
     ? r.action
     : 'direct';
   const result: Raw = { action };
-  const qtype = r.qtype.trim();
-  if (qtype) {
-    result.qtype = /^\d+$/.test(qtype) ? Number(qtype) : qtype;
+  const qType = r.qType.trim();
+  if (qType) {
+    result.qType = /^\d+$/.test(qType) ? Number(qType) : qType;
   }
   const domains = r.domain.split(',').map((d) => d.trim()).filter(Boolean);
   if (domains.length > 0) result.domain = domains;
+  if (r.rCode > 0) result.rCode = r.rCode;
   return result;
 }
 

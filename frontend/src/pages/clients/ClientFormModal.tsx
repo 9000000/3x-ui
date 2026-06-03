@@ -261,9 +261,9 @@ export default function ClientFormModal({
     () => (inbounds || [])
       .filter((ib) => MULTI_CLIENT_PROTOCOLS.has(ib.protocol || ''))
       .map((ib) => ({
-        label: ib.tag ?? '',
+        label: ib.remark?.trim() || ib.tag || '',
         value: ib.id,
-        title: ib.tag ?? '',
+        title: ib.remark?.trim() || ib.tag || '',
       })),
     [inbounds],
   );
@@ -344,6 +344,7 @@ export default function ClientFormModal({
       reset: Number(form.reset) || 0,
       limitIp: Number(form.limitIp) || 0,
       tgId: Number(form.tgId) || 0,
+      group: form.group,
       comment: form.comment,
       enable: !!form.enable,
     };
@@ -389,6 +390,8 @@ export default function ClientFormModal({
         cancelText={t('cancel')}
         okButtonProps={{ loading: submitting }}
         width={720}
+        style={{ top: 20 }}
+        styles={{ body: { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto', overflowX: 'hidden' } }}
         onOk={onSubmit}
         onCancel={close}
       >

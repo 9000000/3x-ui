@@ -3617,7 +3617,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "List the emails of currently connected clients (last seen within the heartbeat window).",
+        "summary": "List the emails of currently connected clients (last seen within the heartbeat window), deduped across every node.",
         "operationId": "post_panel_api_clients_onlines",
         "responses": {
           "200": {
@@ -3642,6 +3642,48 @@
                     "user1",
                     "user2"
                   ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/clients/onlinesByNode": {
+      "post": {
+        "tags": [
+          "Clients"
+        ],
+        "summary": "Online client emails grouped by the node that reported them. The local panel uses key \"0\"; each remote node uses its node id. Lets the inbounds page show online status per node instead of merging every node together.",
+        "operationId": "post_panel_api_clients_onlinesByNode",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "0": [
+                      "user1"
+                    ],
+                    "3": [
+                      "user1",
+                      "user2"
+                    ]
+                  }
                 }
               }
             }
@@ -4203,6 +4245,56 @@
         }
       }
     },
+    "/panel/api/nodes/certFingerprint": {
+      "post": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "Connect to the node over HTTPS without verifying its certificate and return the leaf certificate's SHA-256 (base64). Used by the Add/Edit Node dialog to fetch and pin a self-signed certificate. Uses the same body as /test.",
+        "operationId": "post_panel_api_nodes_certFingerprint",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "scheme": "https",
+                "address": "node1.example.com",
+                "port": 2053,
+                "basePath": "/"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": "k3b1...base64-sha256...="
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/panel/api/nodes/probe/{id}": {
       "post": {
         "tags": [
@@ -4237,6 +4329,69 @@
                     },
                     "obj": {}
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/nodes/updatePanel": {
+      "post": {
+        "tags": [
+          "Nodes"
+        ],
+        "summary": "Trigger the official panel self-updater on each given node (downloads the latest release and restarts). Only enabled, online nodes are updated; offline/disabled ones are reported as skipped. Returns a per-node result list.",
+        "operationId": "post_panel_api_nodes_updatePanel",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "ids": [
+                  1,
+                  2,
+                  3
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": [
+                    {
+                      "id": 1,
+                      "name": "de-1",
+                      "ok": true
+                    },
+                    {
+                      "id": 2,
+                      "name": "fr-1",
+                      "ok": false,
+                      "error": "node is offline"
+                    }
+                  ]
                 }
               }
             }

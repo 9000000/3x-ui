@@ -76,9 +76,9 @@ COPY --chmod=755 --from=builder /app/DockerEntrypoint.sh /app/
 COPY --chmod=755 --from=builder /app/x-ui.sh /usr/bin/x-ui
 COPY --from=builder /app/web/translation /app/web/translation
 
+ENV XUI_IN_DOCKER="true"
+ENV XUI_MAIN_FOLDER="/app"
 ENV XUI_ENABLE_FAIL2BAN="true"
-# Database backend: set XUI_DB_TYPE=postgres and XUI_DB_DSN=postgres://... to use PostgreSQL.
-# Default (unset) is SQLite stored under /etc/x-ui.
 ENV XUI_DB_TYPE=""
 ENV XUI_DB_DSN=""
 EXPOSE 2053

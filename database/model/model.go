@@ -55,8 +55,8 @@ type Inbound struct {
 
 	// Xray configuration fields
 	Listen         string   `json:"listen" form:"listen"`
-	Port           int      `json:"port" form:"port" validate:"gte=1,lte=65535"`
-	Protocol       Protocol `json:"protocol" form:"protocol" validate:"required,oneof=vmess vless trojan shadowsocks wireguard hysteria http mixed tunnel"`
+	Port           int      `json:"port" form:"port" validate:"gte=0,lte=65535"`
+	Protocol       Protocol `json:"protocol" form:"protocol" validate:"required,oneof=vmess vless trojan shadowsocks wireguard hysteria http mixed tunnel tun"`
 	Settings       string   `json:"settings" form:"settings"`
 	StreamSettings string   `json:"streamSettings" form:"streamSettings"`
 	Tag            string   `json:"tag" form:"tag" gorm:"unique"`
@@ -307,6 +307,7 @@ func StripVlessInboundEncryption(settings string) (string, bool) {
 //     inbound with "users must have empty method" when a client carries
 //     one — strip stale entries left over from a switch off a legacy
 //     cipher.
+//
 // Returns the rewritten settings string and true when anything changed.
 func HealShadowsocksClientMethods(settings string) (string, bool) {
 	if settings == "" {
@@ -379,6 +380,8 @@ type Node struct {
 	ApiToken            string `json:"apiToken" form:"apiToken" validate:"required"`
 	Enable              bool   `json:"enable" form:"enable" gorm:"default:true"`
 	AllowPrivateAddress bool   `json:"allowPrivateAddress" form:"allowPrivateAddress" gorm:"default:false"`
+	TlsVerifyMode       string `json:"tlsVerifyMode" form:"tlsVerifyMode" gorm:"column:tls_verify_mode;default:verify" validate:"omitempty,oneof=verify skip pin"`
+	PinnedCertSha256    string `json:"pinnedCertSha256" form:"pinnedCertSha256" gorm:"column:pinned_cert_sha256"`
 
 	// Heartbeat-updated fields. UpdatedAt advances on every probe even when
 	// the row is otherwise unchanged so the UI's "last seen" tooltip is

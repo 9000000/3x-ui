@@ -1,11 +1,13 @@
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Button,
   Card,
   Col,
   ConfigProvider,
   Layout,
   Modal,
+  Result,
   Row,
   Spin,
   Statistic,
@@ -21,7 +23,7 @@ import {
 
 import { HttpUtil, SizeFormatter, RandomUtil } from '@/utils';
 import { createDefaultInboundSettings } from '@/lib/xray/inbound-defaults';
-import { genInboundLinks } from '@/lib/xray/inbound-link';
+import { genInboundLinks, preferPublicHost } from '@/lib/xray/inbound-link';
 import { inboundFromDb } from '@/lib/xray/inbound-from-db';
 import { coerceInboundJsonField, type DBInbound } from '@/models/dbinbound';
 import { useTheme } from '@/hooks/useTheme';
@@ -39,6 +41,7 @@ const InboundFormModal = lazy(() => import('./form/InboundFormModal'));
 const InboundInfoModal = lazy(() => import('./info/InboundInfoModal'));
 const QrCodeModal = lazy(() => import('./qr/QrCodeModal'));
 const AttachClientsModal = lazy(() => import('./clients/AttachClientsModal'));
+const AttachExistingClientsModal = lazy(() => import('./clients/AttachExistingClientsModal'));
 const DetachClientsModal = lazy(() => import('./clients/DetachClientsModal'));
 const AddClientsToGroupModal = lazy(() => import('./clients/AddClientsToGroupModal'));
 
@@ -53,6 +56,7 @@ type RowAction =
   | 'resetTraffic'
   | 'delAllClients'
   | 'attachClients'
+  | 'attachExisting'
   | 'detachClients'
   | 'addToGroup'
   | 'clone';
@@ -72,6 +76,7 @@ export default function InboundsPage() {
 
   const {
     fetched,
+    fetchError,
     dbInbounds,
     clientCount,
     onlineClients,
@@ -129,6 +134,8 @@ export default function InboundsPage() {
 
   const [attachOpen, setAttachOpen] = useState(false);
   const [attachSource, setAttachSource] = useState<DBInbound | null>(null);
+  const [attachExistingOpen, setAttachExistingOpen] = useState(false);
+  const [attachExistingTarget, setAttachExistingTarget] = useState<DBInbound | null>(null);
   const [detachOpen, setDetachOpen] = useState(false);
   const [detachSource, setDetachSource] = useState<DBInbound | null>(null);
 
@@ -176,7 +183,7 @@ export default function InboundsPage() {
     setPromptInitial(opts.value || '');
     setPromptHandler(() => opts.confirm);
     setPromptOpen(true);
-  }, []);
+  }, [t]);
 
   const onPromptConfirm = useCallback(async (value: string) => {
     if (!promptHandler) {
@@ -253,11 +260,11 @@ export default function InboundsPage() {
         remark: projected.remark,
         remarkModel,
         hostOverride: hostOverrideFor(dbInbound),
-        fallbackHostname: window.location.hostname,
+        fallbackHostname: preferPublicHost(window.location.hostname, subSettings.publicHost),
       }),
       fileName: projected.remark || 'inbound',
     });
-  }, [checkFallback, remarkModel, hostOverrideFor, openText, t]);
+  }, [checkFallback, remarkModel, hostOverrideFor, subSettings.publicHost, openText, t]);
 
   const exportInboundClipboard = useCallback((dbInbound: DBInbound) => {
     openText({ title: t('pages.inbounds.inboundJsonTitle'), content: JSON.stringify(dbInbound, null, 2) });
@@ -291,11 +298,11 @@ export default function InboundsPage() {
         remark: projected.remark,
         remarkModel,
         hostOverride: hostOverrideFor(ib),
-        fallbackHostname: window.location.hostname,
+        fallbackHostname: preferPublicHost(window.location.hostname, subSettings.publicHost),
       }));
     }
     openText({ title: t('pages.inbounds.exportAllLinksTitle'), content: out.join('\r\n'), fileName: t('pages.inbounds.exportAllLinksFileName') });
-  }, [dbInbounds, hydrateInbound, checkFallback, remarkModel, hostOverrideFor, openText, t]);
+  }, [dbInbounds, hydrateInbound, checkFallback, remarkModel, hostOverrideFor, subSettings.publicHost, openText, t]);
 
   const exportAllSubs = useCallback(async () => {
     const hydrated = await Promise.all(
@@ -329,7 +336,7 @@ export default function InboundsPage() {
         return false;
       },
     });
-  }, [openPrompt, refresh]);
+  }, [openPrompt, refresh, t]);
 
   const onAddInbound = useCallback(() => {
     setFormMode('add');
@@ -476,7 +483,7 @@ export default function InboundsPage() {
       default:
         messageApi.info(`General action "${key}" — coming in a later 5f subphase`);
     }
-  }, [modal, importInbound, exportAllLinks, exportAllSubs, refresh, messageApi]);
+  }, [modal, importInbound, exportAllLinks, exportAllSubs, refresh, messageApi, t]);
 
   const onRowAction = useCallback(async ({ key, dbInbound }: { key: RowAction; dbInbound: DBInbound }) => {
     // Actions that touch per-client secrets (uuid, password, flow, ...) need
@@ -523,6 +530,10 @@ export default function InboundsPage() {
         setAttachSource(target);
         setAttachOpen(true);
         break;
+      case 'attachExisting':
+        setAttachExistingTarget(target);
+        setAttachExistingOpen(true);
+        break;
       case 'detachClients':
         setDetachSource(target);
         setDetachOpen(true);
@@ -551,6 +562,13 @@ export default function InboundsPage() {
             <Spin spinning={!fetched} delay={200} description={t('loading')} size="large">
               {!fetched ? (
                 <div className="loading-spacer" />
+              ) : fetchError ? (
+                <Result
+                  status="error"
+                  title={t('somethingWentWrong')}
+                  subTitle={fetchError}
+                  extra={<Button type="primary" onClick={refresh}>{t('refresh')}</Button>}
+                />
               ) : (
                 <Row gutter={[isMobile ? 8 : 16, 12]}>
                   <Col span={24}>
@@ -651,6 +669,14 @@ export default function InboundsPage() {
             onAttached={refresh}
             source={attachSource}
             dbInbounds={dbInbounds}
+          />
+        </LazyMount>
+        <LazyMount when={attachExistingOpen}>
+          <AttachExistingClientsModal
+            open={attachExistingOpen}
+            onClose={() => setAttachExistingOpen(false)}
+            onAttached={refresh}
+            target={attachExistingTarget}
           />
         </LazyMount>
         <LazyMount when={detachOpen}>

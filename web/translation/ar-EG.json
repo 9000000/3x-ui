@@ -246,7 +246,10 @@
       "importDatabaseError": "حدث خطأ أثناء استيراد قاعدة البيانات",
       "readDatabaseError": "حدث خطأ أثناء قراءة قاعدة البيانات",
       "getDatabaseError": "حدث خطأ أثناء استرجاع قاعدة البيانات",
-      "getConfigError": "حدث خطأ أثناء استرجاع ملف الإعدادات"
+      "getConfigError": "حدث خطأ أثناء استرجاع ملف الإعدادات",
+      "backupPostgresNote": "تعمل هذه اللوحة على PostgreSQL. يقوم «النسخ الاحتياطي» بتنزيل أرشيف pg_dump (.dump)، و«الاستعادة» تعيد تحميله عبر pg_restore. يجب أن تكون أدوات عميل PostgreSQL (pg_dump و pg_restore) مثبَّتة على الخادم.",
+      "exportDatabasePgDesc": "انقر لتنزيل نسخة PostgreSQL (.dump) من قاعدة بياناتك الحالية إلى جهازك.",
+      "importDatabasePgDesc": "انقر لاختيار ورفع ملف .dump لاستعادة قاعدة بيانات PostgreSQL. سيؤدي هذا إلى استبدال جميع البيانات الحالية."
     },
     "inbounds": {
       "title": "الواردات",
@@ -261,7 +264,7 @@
       "localPanel": "بانل محلي",
       "fallbacks": {
         "title": "Fallbacks",
-        "help": "عند وصول اتصال إلى هذا الـ inbound لا يطابق أي عميل، يتم توجيهه إلى inbound آخر. اختر فرعًا أدناه وسيتم ملء حقول التوجيه (SNI / ALPN / Path / xver) تلقائيًا من نقل الفرع — في الغالب لا تحتاج إلى أي تعديل إضافي. يجب أن يستمع كل فرع على 127.0.0.1 مع security=none.",
+        "help": "عند وصول اتصال إلى هذا الـ inbound لا يطابق أي عميل، يتم توجيهه إلى مكان آخر. اختر inbound فرعيًا أدناه لملء حقول التوجيه (SNI / ALPN / Path / xver) تلقائيًا من نقله، أو اترك القائمة فارغة واضبط Dest مباشرةً (مثل 8080 أو 127.0.0.1:8080) للتوجيه إلى خادم خارجي مثل Nginx. يجب أن يستمع كل inbound فرعي على 127.0.0.1 مع security=none.",
         "empty": "لا توجد fallbacks بعد",
         "add": "إضافة fallback",
         "pickInbound": "اختر inbound",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "ابحث بالبريد أو التعليق",
       "attachClientsStatusDisabled": "معطل",
       "attachClientsSelectedCount": "{selected} من {total} محدد",
+      "attachExistingClients": "إرفاق العملاء الحاليين…",
+      "attachExistingTitle": "إرفاق العملاء الحاليين بـ «{remark}»",
+      "attachExistingDesc": "يرفق العملاء الحاليين ({count} متاح) بهذا الوارد — بنفس UUID/كلمة المرور وحركة المرور المشتركة. يتم تخطي العملاء الموجودين عليه بالفعل.",
+      "attachExistingNoClients": "لا يوجد عملاء بعد. أنشئ عملاء أولاً ثم أرفقهم هنا.",
+      "attachExistingStatusAttached": "مُرفق بالفعل",
       "detachClients": "فصل العملاء",
       "detachClientsTitle": "فصل عملاء من «{remark}»",
       "detachClientsDesc": "يزيل العميل (العملاء) المحدد من هذا الوارد فقط. تُحفظ سجلات العملاء (استخدم Delete للإزالة الكاملة). المصدر يحتوي على {count} عميل إجمالاً.",
@@ -439,7 +447,10 @@
         "trafficGetError": "خطأ في الحصول على حركات المرور",
         "getNewX25519CertError": "حدث خطأ أثناء الحصول على شهادة X25519.",
         "getNewmldsa65Error": "حدث خطاء في الحصول على mldsa65.",
-        "getNewVlessEncError": "حدث خطأ أثناء الحصول على VlessEnc."
+        "getNewVlessEncError": "حدث خطأ أثناء الحصول على VlessEnc.",
+        "invalidClientField": "العميل {client}: الحقل {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (+{count} أخرى)"
       },
       "form": {
         "moveUp": "أعلى",
@@ -544,8 +555,8 @@
         "echKey": "ECH key",
         "echConfig": "تكوين ECH",
         "pinnedPeerCertSha256": "SHA-256 لشهادة النظير المثبَّتة",
-        "pinnedPeerCertSha256Tip": "تجزئات SHA-256 المُرمَّزة بـ Base64 لشهادة النظير. للوحة فقط — لا تُكتب في إعدادات xray على الخادم، لكنها تُضمَّن في روابط المشاركة ليتمكَّن العملاء من تثبيت الشهادة.",
-        "pinnedPeerCertSha256Placeholder": "تجزئة (تجزئات) base64، مفصولة بفواصل",
+        "pinnedPeerCertSha256Tip": "تجزئات SHA-256 لشهادة النظير كسلسلة سداسية عشرية (مثل e8e2d3…)، مفصولة بفواصل. للوحة فقط — لا تُكتب في إعدادات xray على الخادم، لكنها تُضمَّن في روابط المشاركة ليتمكَّن العملاء من تثبيت الشهادة.",
+        "pinnedPeerCertSha256Placeholder": "تجزئة (تجزئات) سداسية عشرية، مفصولة بفواصل",
         "generateRandomPin": "إنشاء تجزئة عشوائية",
         "getNewEchCert": "احصل على شهادة ECH جديدة",
         "show": "عرض",
@@ -559,7 +570,8 @@
         "getNewCert": "احصل على شهادة جديدة",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "احصل على Seed جديد"
+        "getNewSeed": "احصل على Seed جديد",
+        "listenHelp": "يمكنك أيضًا إدخال مسار Unix socket (مثل /run/xray/in.sock) للاستماع على socket بدلاً من منفذ TCP — في هذه الحالة اضبط المنفذ على 0."
       },
       "info": {
         "mode": "الوضع",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "ابحث بالبريد، التعليق، sub ID، UUID، كلمة المرور، auth…",
       "filterTitle": "تصفية العملاء",
       "clearAllFilters": "مسح الكل",
+      "showingCount": "عرض {shown} من {total}",
       "sortOldest": "الأقدم أولاً",
       "sortNewest": "الأحدث أولاً",
       "sortRecentlyUpdated": "محدّث مؤخراً",
@@ -826,6 +839,12 @@
       "panelVersion": "إصدار اللوحة",
       "actions": "العمليات",
       "probe": "فحص فوري",
+      "updatePanel": "تحديث اللوحة",
+      "updateSelected": "تحديث المحدد ({count})",
+      "updateAvailable": "تحديث متاح",
+      "upToDate": "محدّث",
+      "updateConfirmTitle": "تحديث {count} عقدة إلى أحدث إصدار؟",
+      "updateConfirmContent": "كل عقدة محددة ستنزّل أحدث إصدار وتعيد التشغيل عليه. يتم تحديث العقد المفعّلة والمتصلة فقط.",
       "testConnection": "اختبار الاتصال",
       "connectionOk": "الاتصال شغال ({ms} ms)",
       "connectionFailed": "فشل الاتصال",
@@ -847,8 +866,23 @@
         "deleted": "اتمسح النود",
         "test": "اختبار الاتصال",
         "fillRequired": "الاسم والعنوان والبورت وتوكن API كلهم مطلوبين",
-        "probeFailed": "فشل الفحص"
-      }
+        "probeFailed": "فشل الفحص",
+        "updateStarted": "بدأ تحديث اللوحة",
+        "updateResult": "تم بدء التحديث على {ok} عقدة، فشل {failed}",
+        "updateNoneEligible": "اختر عقدة واحدة على الأقل متصلة ومفعّلة"
+      },
+      "tlsVerifyMode": "التحقق من TLS",
+      "tlsVerifyModeHint": "كيف يتحقق اللوحة من شهادة HTTPS الخاصة بالعقدة. التثبيت أو التخطّي مخصّصان للشهادات الموقّعة ذاتيًا (عُقد https فقط).",
+      "tlsVerify": "تحقّق (CA الافتراضية)",
+      "tlsPin": "تثبيت الشهادة (SHA-256)",
+      "tlsSkip": "تخطّي التحقق",
+      "tlsSkipWarning": "تخطّي التحقق يزيل الحماية من هجمات الوسيط — قد يُعترض رمز الـ API. يُفضَّل تثبيت الشهادة بدلاً من ذلك.",
+      "pinnedCert": "SHA-256 للشهادة المثبّتة",
+      "pinnedCertHint": "SHA-256 لشهادة العقدة بصيغة base64 أو hex. استخدم \"جلب\" لقراءتها من العقدة الآن.",
+      "pinnedCertPlaceholder": "SHA-256 بصيغة base64 أو hex",
+      "fetchPin": "جلب",
+      "pinFetched": "تم جلب شهادة العقدة الحالية",
+      "pinFetchFailed": "تعذّر جلب الشهادة"
     },
     "settings": {
       "title": "إعدادات البانل",
@@ -1173,6 +1207,8 @@
         "tagRequired": "الوسم مطلوب",
         "tagPlaceholder": "وسم-فريد",
         "localIpPlaceholder": "IP محلي",
+        "dialerProxyPlaceholder": "اختر مخرجًا لتمرير الاتصال عبره",
+        "dialerProxyHint": "وجّه هذا المخرج عبر مخرج آخر (حسب الوسم) لبناء سلسلة بروكسي. اتركه فارغًا للاتصال المباشر.",
         "addressRequired": "العنوان مطلوب",
         "portRequired": "المنفذ مطلوب",
         "optional": "اختياري",

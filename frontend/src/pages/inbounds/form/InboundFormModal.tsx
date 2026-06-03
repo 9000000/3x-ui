@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import {
@@ -20,6 +20,7 @@ import {
   formValuesToWirePayload,
 } from '@/lib/xray/inbound-form-adapter';
 import { createDefaultInboundSettings } from '@/lib/xray/inbound-defaults';
+import { composeInboundTag, isAutoInboundTag, type InboundTagInput } from '@/lib/xray/inbound-tag';
 import {
   canEnableReality,
   canEnableStream,
@@ -48,6 +49,7 @@ import { FinalMaskForm } from '@/lib/xray/forms/transport';
 import './InboundFormModal.css';
 
 import { AdvancedAllEditor, AdvancedSliceEditor } from './advanced-editors';
+import { formatInboundIssue, formatInboundValidation } from './formatValidationError';
 import {
   HttpFields,
   HysteriaFields,
@@ -157,6 +159,23 @@ export default function InboundFormModal({
   const network = Form.useWatch(['streamSettings', 'network'], form) ?? '';
   const security = Form.useWatch(['streamSettings', 'security'], form) ?? 'none';
   const streamEnabled = canEnableStream({ protocol });
+
+  const wPort = Form.useWatch('port', form);
+  const wListen = (Form.useWatch('listen', form) ?? '') as string;
+  const isUdsListen = wListen.startsWith('/');
+  const wNodeId = Form.useWatch('nodeId', form) ?? null;
+  const wTag = Form.useWatch('tag', form) ?? '';
+  const wSsNetwork = Form.useWatch(['settings', 'network'], form);
+  const wTunnelNetwork = Form.useWatch(['settings', 'allowedNetwork'], form);
+  const autoTagRef = useRef(true);
+  const lastWrittenTagRef = useRef('');
+  const currentTagInput = (): InboundTagInput => ({
+    port: typeof wPort === 'number' ? wPort : 0,
+    nodeId: typeof wNodeId === 'number' ? wNodeId : null,
+    protocol,
+    streamSettings: { network },
+    settings: { network: wSsNetwork, allowedNetwork: wTunnelNetwork, udp: mixedUdpOn },
+  });
   const isFallbackHost =
     (protocol === Protocols.VLESS || protocol === Protocols.TROJAN)
     && network === 'tcp'
@@ -272,6 +291,15 @@ export default function InboundFormModal({
       : buildAddModeValues();
     form.resetFields();
     form.setFieldsValue(initial);
+    const initialTag = (initial.tag ?? '') as string;
+    autoTagRef.current = isAutoInboundTag(initialTag, {
+      port: initial.port ?? 0,
+      nodeId: initial.nodeId ?? null,
+      protocol: initial.protocol,
+      streamSettings: (initial.streamSettings ?? {}) as Record<string, unknown>,
+      settings: (initial.settings ?? {}) as Record<string, unknown>,
+    });
+    lastWrittenTagRef.current = initialTag;
     if (
       mode === 'edit'
       && dbInbound
@@ -284,6 +312,23 @@ export default function InboundFormModal({
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode, dbInbound, form]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (wTag === lastWrittenTagRef.current) return;
+    autoTagRef.current = isAutoInboundTag(wTag, currentTagInput());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, wTag]);
+
+  useEffect(() => {
+    if (!open || !autoTagRef.current) return;
+    const next = composeInboundTag(currentTagInput());
+    if (next !== (form.getFieldValue('tag') ?? '')) {
+      lastWrittenTagRef.current = next;
+      form.setFieldValue('tag', next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, wPort, wNodeId, protocol, network, mixedUdpOn, wSsNetwork, wTunnelNetwork]);
 
   // Why: protocol picker reset cascades through the form — clearing the
   // settings DU branch and dropping a nodeId that no longer applies. The
@@ -360,18 +405,12 @@ export default function InboundFormModal({
     const values = form.getFieldsValue(true) as InboundFormValues;
     const parsed = InboundFormSchema.safeParse(values);
     if (!parsed.success) {
-      const issue = parsed.error.issues[0];
-      const path = Array.isArray(issue?.path) && issue.path.length > 0
-        ? issue.path.join('.')
-        : '';
-      const baseMsg = issue?.message ?? 'somethingWentWrong';
-      const display = path ? `${path}: ${baseMsg}` : baseMsg;
-      messageApi.error(t(baseMsg, { defaultValue: display }));
-      console.error('[InboundFormModal] schema validation failed', {
-        path: issue?.path,
-        message: issue?.message,
-        values,
-      });
+      const issues = parsed.error.issues;
+      messageApi.error(formatInboundValidation(issues, values, t));
+      console.error(
+        '[InboundFormModal] schema validation failed:',
+        issues.map((issue) => formatInboundIssue(issue, values, t)),
+      );
       return;
     }
     setSaving(true);
@@ -442,7 +481,11 @@ export default function InboundFormModal({
         <Select disabled={mode === 'edit'} options={PROTOCOL_OPTIONS} />
       </Form.Item>
 
-      <Form.Item name="listen" label={t('pages.inbounds.address')}>
+      <Form.Item
+        name="listen"
+        label={t('pages.inbounds.address')}
+        extra={t('pages.inbounds.form.listenHelp')}
+      >
         <Input placeholder={t('pages.inbounds.monitorDesc')} />
       </Form.Item>
 
@@ -451,7 +494,7 @@ export default function InboundFormModal({
         label={t('pages.inbounds.port')}
         rules={[antdRule(InboundFormBaseSchema.shape.port, t)]}
       >
-        <InputNumber min={1} max={65535} />
+        <InputNumber min={isUdsListen ? 0 : 1} max={65535} />
       </Form.Item>
 
       <Form.Item
@@ -585,7 +628,7 @@ export default function InboundFormModal({
     }
     cleaned[`${next}Settings`] = newStreamSlice(next);
     // mKCP wants a UDP mask wrapper on the FinalMask side; seed it with
-    // `mkcp-original` so the inbound boots with a sensible default
+    // `mkcp-legacy` so the inbound boots with a sensible default
     // instead of unobfuscated mKCP traffic. The user can still edit or
     // clear the mask via the FinalMask section.
     if (next === 'kcp') {
@@ -593,12 +636,12 @@ export default function InboundFormModal({
       const udp = Array.isArray(fm.udp) ? (fm.udp as unknown[]) : [];
       const hasMkcp = udp.some((m) => {
         const entry = m as { type?: string };
-        return entry?.type === 'mkcp-original';
+        return entry?.type === 'mkcp-legacy';
       });
       if (!hasMkcp) {
         cleaned.finalmask = {
           ...fm,
-          udp: [...udp, { type: 'mkcp-original', settings: {} }],
+          udp: [...udp, { type: 'mkcp-legacy', settings: { header: '', value: '' } }],
         };
       }
     }

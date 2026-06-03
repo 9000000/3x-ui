@@ -246,7 +246,10 @@
       "importDatabaseError": "An error occurred while importing the database.",
       "readDatabaseError": "An error occurred while reading the database.",
       "getDatabaseError": "An error occurred while retrieving the database.",
-      "getConfigError": "An error occurred while retrieving the config file."
+      "getConfigError": "An error occurred while retrieving the config file.",
+      "backupPostgresNote": "This panel runs on PostgreSQL. Back Up downloads a pg_dump archive (.dump) and Restore loads it back with pg_restore. The server needs the PostgreSQL client tools (pg_dump and pg_restore) installed.",
+      "exportDatabasePgDesc": "Click to download a PostgreSQL dump (.dump) of your current database to your device.",
+      "importDatabasePgDesc": "Click to select and upload a .dump file to restore your PostgreSQL database. This replaces all current data."
     },
     "inbounds": {
       "title": "Inbounds",
@@ -261,7 +264,7 @@
       "localPanel": "Local panel",
       "fallbacks": {
         "title": "Fallbacks",
-        "help": "When a connection on this inbound does not match any client, route it to another inbound. Pick a child below and the routing fields (SNI / ALPN / path / xver) auto-fill from its transport — most setups need no further tweaking. Each child should listen on 127.0.0.1 with security=none.",
+        "help": "When a connection on this inbound does not match any client, route it elsewhere. Pick a child inbound below to auto-fill the routing fields (SNI / ALPN / path / xver) from its transport, or leave the picker empty and set Dest directly (e.g. 8080 or 127.0.0.1:8080) to route to an external server such as Nginx. Each child inbound should listen on 127.0.0.1 with security=none.",
         "empty": "No fallbacks yet",
         "add": "Add fallback",
         "pickInbound": "Pick an inbound",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "Search email or comment",
       "attachClientsStatusDisabled": "Disabled",
       "attachClientsSelectedCount": "{selected} of {total} selected",
+      "attachExistingClients": "Attach Existing Clients…",
+      "attachExistingTitle": "Attach existing clients to \"{remark}\"",
+      "attachExistingDesc": "Attaches existing clients ({count} available) to this inbound — same UUID/password and shared traffic. Clients already on it are skipped.",
+      "attachExistingNoClients": "No clients exist yet. Create clients first, then attach them here.",
+      "attachExistingStatusAttached": "Already attached",
       "detachClients": "Detach Clients",
       "detachClientsTitle": "Detach clients of \"{remark}\"",
       "detachClientsDesc": "Removes the selected client(s) from this inbound only. Client records themselves are kept (use Delete to remove fully). Source has {count} clients in total.",
@@ -439,7 +447,10 @@
         "trafficGetError": "Error getting traffic.",
         "getNewX25519CertError": "Error while obtaining the X25519 certificate.",
         "getNewmldsa65Error": "Error while obtaining mldsa65.",
-        "getNewVlessEncError": "Error while obtaining VlessEnc."
+        "getNewVlessEncError": "Error while obtaining VlessEnc.",
+        "invalidClientField": "Client {client}: {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (+{count} more)"
       },
       "form": {
         "moveUp": "Move up",
@@ -544,8 +555,8 @@
         "echKey": "ECH key",
         "echConfig": "ECH config",
         "pinnedPeerCertSha256": "Pinned Peer Cert SHA-256",
-        "pinnedPeerCertSha256Tip": "Base64-encoded SHA-256 hashes of the peer certificate. Panel-only — not written to the server's xray config, but included in share links so clients can pin the certificate.",
-        "pinnedPeerCertSha256Placeholder": "base64 hash(es), comma-separated",
+        "pinnedPeerCertSha256Tip": "SHA-256 hash(es) of the peer certificate as a hex string (e.g. e8e2d3…), comma-separated. Panel-only — not written to the server's xray config, but included in share links so clients can pin the certificate.",
+        "pinnedPeerCertSha256Placeholder": "hex hash(es), comma-separated",
         "generateRandomPin": "Generate random hash",
         "getNewEchCert": "Get New ECH Cert",
         "show": "Show",
@@ -559,7 +570,8 @@
         "getNewCert": "Get New Cert",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "Get New Seed"
+        "getNewSeed": "Get New Seed",
+        "listenHelp": "You can also enter a Unix socket path (e.g. /run/xray/in.sock) to listen on a socket instead of a TCP port — set Port to 0 in that case."
       },
       "info": {
         "mode": "Mode",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "Search email, comment, sub ID, UUID, password, auth…",
       "filterTitle": "Filter clients",
       "clearAllFilters": "Clear all",
+      "showingCount": "Showing {shown} of {total}",
       "sortOldest": "Oldest first",
       "sortNewest": "Newest first",
       "sortRecentlyUpdated": "Recently updated",
@@ -826,6 +839,12 @@
       "panelVersion": "Panel Version",
       "actions": "Actions",
       "probe": "Probe Now",
+      "updatePanel": "Update Panel",
+      "updateSelected": "Update Selected ({count})",
+      "updateAvailable": "Update available",
+      "upToDate": "Up to date",
+      "updateConfirmTitle": "Update {count} node(s) to the latest version?",
+      "updateConfirmContent": "Each selected node downloads the latest release and restarts onto it. Only enabled, online nodes are updated.",
       "testConnection": "Test Connection",
       "connectionOk": "Connection OK ({ms} ms)",
       "connectionFailed": "Connection failed",
@@ -847,8 +866,23 @@
         "deleted": "Node deleted",
         "test": "Test connection",
         "fillRequired": "Name, address, port and API token are required",
-        "probeFailed": "Probe failed"
-      }
+        "probeFailed": "Probe failed",
+        "updateStarted": "Panel update started",
+        "updateResult": "Update triggered on {ok} node(s), {failed} failed",
+        "updateNoneEligible": "Select at least one online, enabled node"
+      },
+      "tlsVerifyMode": "TLS verification",
+      "tlsVerifyModeHint": "How the panel validates the node's HTTPS certificate. Pin or Skip are for self-signed certs (https nodes only).",
+      "tlsVerify": "Verify (default CA)",
+      "tlsPin": "Pin certificate (SHA-256)",
+      "tlsSkip": "Skip verification",
+      "tlsSkipWarning": "Skipping verification removes protection against man-in-the-middle attacks — the API token could be intercepted. Prefer pinning the certificate.",
+      "pinnedCert": "Pinned certificate SHA-256",
+      "pinnedCertHint": "Base64 or hex SHA-256 of the node's certificate. Use Fetch to read it from the node now.",
+      "pinnedCertPlaceholder": "base64 or hex SHA-256",
+      "fetchPin": "Fetch",
+      "pinFetched": "Fetched the node's current certificate",
+      "pinFetchFailed": "Could not fetch the certificate"
     },
     "settings": {
       "title": "Panel Settings",
@@ -1173,6 +1207,8 @@
         "tagRequired": "Tag is required",
         "tagPlaceholder": "unique-tag",
         "localIpPlaceholder": "local IP",
+        "dialerProxyPlaceholder": "Select an outbound to chain through",
+        "dialerProxyHint": "Dial this outbound through another outbound (by tag) to build a proxy chain. Leave empty to connect directly.",
         "addressRequired": "Address is required",
         "portRequired": "Port is required",
         "optional": "optional",

@@ -72,6 +72,7 @@ func initModels() error {
 		&model.ClientInbound{},
 		&model.ClientGroup{},
 		&model.InboundFallback{},
+		&model.NodeClientTraffic{},
 	}
 	for _, mdl := range models {
 		if err := db.AutoMigrate(mdl); err != nil {
@@ -83,7 +84,27 @@ func initModels() error {
 			return err
 		}
 	}
+	if err := dropLegacyForeignKeys(); err != nil {
+		return err
+	}
 	if err := pruneOrphanedClientInbounds(); err != nil {
+		return err
+	}
+	if IsPostgres() {
+		if err := resyncPostgresSequences(db, models); err != nil {
+			log.Printf("Error resyncing postgres sequences: %v", err)
+			return err
+		}
+	}
+	return nil
+}
+
+func dropLegacyForeignKeys() error {
+	if !IsPostgres() {
+		return nil
+	}
+	if err := db.Exec("ALTER TABLE client_traffics DROP CONSTRAINT IF EXISTS fk_inbounds_client_stats").Error; err != nil {
+		log.Printf("Error dropping legacy foreign key fk_inbounds_client_stats: %v", err)
 		return err
 	}
 	return nil
@@ -160,7 +181,7 @@ func runSeeders(isUsersEmpty bool) error {
 	}
 
 	if empty && isUsersEmpty {
-		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix", "InboundClientSubIdFix"}
+		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix", "InboundClientSubIdFix", "FreedomFinalRulesReverseFix"}
 		for _, name := range seeders {
 			if err := db.Create(&model.HistoryOfSeeders{SeederName: name}).Error; err != nil {
 				return err
@@ -183,6 +204,9 @@ func runSeeders(isUsersEmpty bool) error {
 		}
 
 		for _, user := range users {
+			if crypto.IsHashed(user.Password) {
+				continue
+			}
 			hashedPassword, err := crypto.HashPasswordAsBcrypt(user.Password)
 			if err != nil {
 				log.Printf("Error hashing password for user '%s': %v", user.Username, err)
@@ -228,6 +252,12 @@ func runSeeders(isUsersEmpty bool) error {
 
 	if !slices.Contains(seedersHistory, "InboundClientSubIdFix") {
 		if err := normalizeInboundClientSubId(); err != nil {
+			return err
+		}
+	}
+
+	if !slices.Contains(seedersHistory, "FreedomFinalRulesReverseFix") {
+		if err := normalizeFreedomFinalRules(); err != nil {
 			return err
 		}
 	}
@@ -375,6 +405,101 @@ func normalizeInboundClientsArray() error {
 		}
 		return tx.Create(&model.HistoryOfSeeders{SeederName: "InboundClientsArrayFix"}).Error
 	})
+}
+
+func normalizeFreedomFinalRules() error {
+	var setting model.Setting
+	err := db.Model(model.Setting{}).Where("key = ?", "xrayTemplateConfig").First(&setting).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return db.Create(&model.HistoryOfSeeders{SeederName: "FreedomFinalRulesReverseFix"}).Error
+	}
+	if err != nil {
+		return err
+	}
+
+	updated, changed, rErr := rewriteFreedomFinalRules(setting.Value)
+	if rErr != nil {
+		log.Printf("FreedomFinalRulesReverseFix: skip (invalid xrayTemplateConfig json): %v", rErr)
+		return db.Create(&model.HistoryOfSeeders{SeederName: "FreedomFinalRulesReverseFix"}).Error
+	}
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		if changed {
+			if err := tx.Model(&model.Setting{}).Where("key = ?", "xrayTemplateConfig").
+				Update("value", updated).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Create(&model.HistoryOfSeeders{SeederName: "FreedomFinalRulesReverseFix"}).Error
+	})
+}
+
+func rewriteFreedomFinalRules(raw string) (string, bool, error) {
+	if strings.TrimSpace(raw) == "" {
+		return raw, false, nil
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return raw, false, err
+	}
+	outbounds, ok := cfg["outbounds"].([]any)
+	if !ok {
+		return raw, false, nil
+	}
+	changed := false
+	for _, ob := range outbounds {
+		obj, ok := ob.(map[string]any)
+		if !ok {
+			continue
+		}
+		if proto, _ := obj["protocol"].(string); proto != "freedom" {
+			continue
+		}
+		settings, ok := obj["settings"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if !isLegacyPrivateOnlyFinalRules(settings["finalRules"]) {
+			continue
+		}
+		settings["finalRules"] = []any{map[string]any{"action": "allow"}}
+		changed = true
+	}
+	if !changed {
+		return raw, false, nil
+	}
+	out, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return raw, false, err
+	}
+	return string(out), true, nil
+}
+
+func isLegacyPrivateOnlyFinalRules(v any) bool {
+	rules, ok := v.([]any)
+	if !ok || len(rules) != 1 {
+		return false
+	}
+	rule, ok := rules[0].(map[string]any)
+	if !ok {
+		return false
+	}
+	if action, _ := rule["action"].(string); action != "allow" {
+		return false
+	}
+	ips, ok := rule["ip"].([]any)
+	if !ok || len(ips) != 1 {
+		return false
+	}
+	if s, _ := ips[0].(string); s != "geoip:private" {
+		return false
+	}
+	for k := range rule {
+		if k != "action" && k != "ip" {
+			return false
+		}
+	}
+	return true
 }
 
 // normalizeClientJSONFields coerces loosely-typed numeric fields in a raw
@@ -545,7 +670,7 @@ func InitDB(dbPath string) error {
 	} else {
 		gormLogger = logger.Discard
 	}
-	c := &gorm.Config{Logger: gormLogger}
+	c := &gorm.Config{Logger: gormLogger, DisableForeignKeyConstraintWhenMigrating: true}
 
 	var err error
 	switch config.GetDBKind() {

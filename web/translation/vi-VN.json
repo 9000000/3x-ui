@@ -246,7 +246,10 @@
       "importDatabaseError": "Lỗi xảy ra khi nhập cơ sở dữ liệu",
       "readDatabaseError": "Lỗi xảy ra khi đọc cơ sở dữ liệu",
       "getDatabaseError": "Lỗi xảy ra khi truy xuất cơ sở dữ liệu",
-      "getConfigError": "Lỗi xảy ra khi truy xuất tệp cấu hình"
+      "getConfigError": "Lỗi xảy ra khi truy xuất tệp cấu hình",
+      "backupPostgresNote": "Bảng điều khiển này chạy trên PostgreSQL. «Sao lưu» tải xuống một tệp lưu trữ pg_dump (.dump) và «Khôi phục» nạp lại bằng pg_restore. Máy chủ cần cài đặt các công cụ máy khách PostgreSQL (pg_dump và pg_restore).",
+      "exportDatabasePgDesc": "Nhấn để tải xuống bản kết xuất PostgreSQL (.dump) của cơ sở dữ liệu hiện tại về thiết bị của bạn.",
+      "importDatabasePgDesc": "Nhấn để chọn và tải lên một tệp .dump nhằm khôi phục cơ sở dữ liệu PostgreSQL của bạn. Thao tác này sẽ thay thế toàn bộ dữ liệu hiện tại."
     },
     "inbounds": {
       "title": "Inbound",
@@ -261,7 +264,7 @@
       "localPanel": "Panel cục bộ",
       "fallbacks": {
         "title": "Fallbacks",
-        "help": "Khi một kết nối trên inbound này không khớp với client nào, nó sẽ được chuyển hướng tới inbound khác. Chọn một child bên dưới và các trường định tuyến (SNI / ALPN / Path / xver) sẽ được tự động điền từ transport của child — hầu hết cấu hình không cần chỉnh thêm. Mỗi child nên lắng nghe trên 127.0.0.1 với security=none.",
+        "help": "Khi một kết nối trên inbound này không khớp với client nào, hãy chuyển hướng nó tới nơi khác. Chọn một inbound con bên dưới để tự động điền các trường định tuyến (SNI / ALPN / Path / xver) từ transport của nó, hoặc để trống ô chọn và đặt Dest trực tiếp (ví dụ 8080 hoặc 127.0.0.1:8080) để chuyển hướng tới một máy chủ bên ngoài như Nginx. Mỗi inbound con nên lắng nghe trên 127.0.0.1 với security=none.",
         "empty": "Chưa có fallback nào",
         "add": "Thêm fallback",
         "pickInbound": "Chọn một inbound",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "Tìm email hoặc ghi chú",
       "attachClientsStatusDisabled": "Đã tắt",
       "attachClientsSelectedCount": "Đã chọn {selected}/{total}",
+      "attachExistingClients": "Gắn client hiện có…",
+      "attachExistingTitle": "Gắn client hiện có vào «{remark}»",
+      "attachExistingDesc": "Gắn các client hiện có ({count} khả dụng) vào inbound này — cùng UUID/mật khẩu và lưu lượng chung. Các client đã có trên inbound sẽ được bỏ qua.",
+      "attachExistingNoClients": "Chưa có client nào. Hãy tạo client trước, rồi gắn vào đây.",
+      "attachExistingStatusAttached": "Đã gắn",
       "detachClients": "Tách client",
       "detachClientsTitle": "Tách client của «{remark}»",
       "detachClientsDesc": "Chỉ xóa client đã chọn khỏi inbound này. Hồ sơ client được giữ lại (dùng Delete để xóa hoàn toàn). Nguồn có tổng cộng {count} client.",
@@ -439,7 +447,10 @@
         "trafficGetError": "Lỗi khi lấy thông tin lưu lượng",
         "getNewX25519CertError": "Lỗi khi lấy chứng chỉ X25519.",
         "getNewmldsa65Error": "Lỗi khi lấy chứng chỉ mldsa65.",
-        "getNewVlessEncError": "Lỗi khi lấy chứng chỉ VlessEnc."
+        "getNewVlessEncError": "Lỗi khi lấy chứng chỉ VlessEnc.",
+        "invalidClientField": "Khách hàng {client}: trường {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (+{count} lỗi khác)"
       },
       "form": {
         "moveUp": "Lên",
@@ -544,8 +555,8 @@
         "echKey": "ECH key",
         "echConfig": "Cấu hình ECH",
         "pinnedPeerCertSha256": "SHA-256 chứng chỉ peer đã ghim",
-        "pinnedPeerCertSha256Tip": "Hash SHA-256 mã hóa Base64 của chứng chỉ peer. Chỉ panel — không ghi vào cấu hình xray máy chủ, nhưng được đưa vào liên kết chia sẻ để client có thể ghim chứng chỉ.",
-        "pinnedPeerCertSha256Placeholder": "hash base64, phân tách bằng dấu phẩy",
+        "pinnedPeerCertSha256Tip": "Hash SHA-256 của chứng chỉ peer dưới dạng chuỗi thập lục phân (vd. e8e2d3…), phân tách bằng dấu phẩy. Chỉ panel — không ghi vào cấu hình xray máy chủ, nhưng được đưa vào liên kết chia sẻ để client có thể ghim chứng chỉ.",
+        "pinnedPeerCertSha256Placeholder": "hash thập lục phân, phân tách bằng dấu phẩy",
         "generateRandomPin": "Tạo hash ngẫu nhiên",
         "getNewEchCert": "Lấy chứng chỉ ECH mới",
         "show": "Hiện",
@@ -559,7 +570,8 @@
         "getNewCert": "Lấy chứng chỉ mới",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "Lấy Seed mới"
+        "getNewSeed": "Lấy Seed mới",
+        "listenHelp": "Bạn cũng có thể nhập đường dẫn Unix socket (ví dụ /run/xray/in.sock) để lắng nghe trên socket thay vì cổng TCP — khi đó hãy đặt Port là 0."
       },
       "info": {
         "mode": "Chế độ",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "Tìm email, ghi chú, sub ID, UUID, mật khẩu, auth…",
       "filterTitle": "Lọc client",
       "clearAllFilters": "Xóa tất cả",
+      "showingCount": "Hiển thị {shown} trên {total}",
       "sortOldest": "Cũ nhất trước",
       "sortNewest": "Mới nhất trước",
       "sortRecentlyUpdated": "Gần đây cập nhật",
@@ -826,6 +839,12 @@
       "panelVersion": "Phiên bản panel",
       "actions": "Hành động",
       "probe": "Kiểm tra ngay",
+      "updatePanel": "Cập nhật bảng điều khiển",
+      "updateSelected": "Cập nhật đã chọn ({count})",
+      "updateAvailable": "Có bản cập nhật",
+      "upToDate": "Mới nhất",
+      "updateConfirmTitle": "Cập nhật {count} node lên phiên bản mới nhất?",
+      "updateConfirmContent": "Mỗi node đã chọn sẽ tải bản phát hành mới nhất và khởi động lại. Chỉ các node đang bật và trực tuyến được cập nhật.",
       "testConnection": "Kiểm tra kết nối",
       "connectionOk": "Kết nối OK ({ms} ms)",
       "connectionFailed": "Kết nối thất bại",
@@ -847,8 +866,23 @@
         "deleted": "Đã xóa nút",
         "test": "Kiểm tra kết nối",
         "fillRequired": "Tên, địa chỉ, cổng và token API là bắt buộc",
-        "probeFailed": "Kiểm tra thất bại"
-      }
+        "probeFailed": "Kiểm tra thất bại",
+        "updateStarted": "Đã bắt đầu cập nhật bảng điều khiển",
+        "updateResult": "Đã kích hoạt cập nhật trên {ok} node, {failed} thất bại",
+        "updateNoneEligible": "Chọn ít nhất một node trực tuyến và đang bật"
+      },
+      "tlsVerifyMode": "Xác minh TLS",
+      "tlsVerifyModeHint": "Cách panel xác thực chứng chỉ HTTPS của node. Ghim hoặc Bỏ qua dành cho chứng chỉ tự ký (chỉ node https).",
+      "tlsVerify": "Xác minh (CA mặc định)",
+      "tlsPin": "Ghim chứng chỉ (SHA-256)",
+      "tlsSkip": "Bỏ qua xác minh",
+      "tlsSkipWarning": "Bỏ qua xác minh sẽ loại bỏ bảo vệ trước tấn công xen giữa — token API có thể bị chặn bắt. Nên ghim chứng chỉ thay vì vậy.",
+      "pinnedCert": "SHA-256 của chứng chỉ đã ghim",
+      "pinnedCertHint": "SHA-256 của chứng chỉ node ở dạng base64 hoặc hex. Dùng Lấy để đọc trực tiếp từ node.",
+      "pinnedCertPlaceholder": "SHA-256 base64 hoặc hex",
+      "fetchPin": "Lấy",
+      "pinFetched": "Đã lấy chứng chỉ hiện tại của node",
+      "pinFetchFailed": "Không thể lấy chứng chỉ"
     },
     "settings": {
       "title": "Cài đặt",
@@ -1173,6 +1207,8 @@
         "tagRequired": "Tag là bắt buộc",
         "tagPlaceholder": "tag-duy-nhất",
         "localIpPlaceholder": "IP nội bộ",
+        "dialerProxyPlaceholder": "Chọn một outbound để nối chuỗi",
+        "dialerProxyHint": "Kết nối outbound này qua một outbound khác (theo tag) để tạo chuỗi proxy. Để trống để kết nối trực tiếp.",
         "addressRequired": "Địa chỉ là bắt buộc",
         "portRequired": "Cổng là bắt buộc",
         "optional": "tùy chọn",

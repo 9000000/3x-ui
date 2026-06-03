@@ -246,7 +246,10 @@
       "importDatabaseError": "خطا در وارد کردن پایگاه داده",
       "readDatabaseError": "خطا در خواندن پایگاه داده",
       "getDatabaseError": "خطا در دریافت پایگاه داده",
-      "getConfigError": "خطا در دریافت فایل پیکربندی"
+      "getConfigError": "خطا در دریافت فایل پیکربندی",
+      "backupPostgresNote": "این پنل روی PostgreSQL اجرا می‌شود. «پشتیبان‌گیری» یک آرشیو pg_dump (.dump) دانلود می‌کند و «بازیابی» آن را با pg_restore بازمی‌گرداند. سرور باید ابزارهای کلاینت PostgreSQL (pg_dump و pg_restore) را نصب داشته باشد.",
+      "exportDatabasePgDesc": "برای دانلود یک دامپ PostgreSQL (.dump) از پایگاه داده فعلی روی دستگاهتان کلیک کنید.",
+      "importDatabasePgDesc": "برای انتخاب و بارگذاری یک فایل .dump جهت بازیابی پایگاه داده PostgreSQL کلیک کنید. این کار همه داده‌های فعلی را جایگزین می‌کند."
     },
     "inbounds": {
       "title": "ورودی‌ها",
@@ -261,7 +264,7 @@
       "localPanel": "پنل لوکال",
       "fallbacks": {
         "title": "Fallbackها",
-        "help": "وقتی اتصالی روی این اینباند با هیچ کلاینتی تطبیق پیدا نمی‌کند، به یک اینباند دیگر ارجاع داده می‌شود. یک فرزند انتخاب کنید، فیلدهای مسیریابی (SNI / ALPN / Path / xver) خودکار از روی transport آن پر می‌شود — برای بیشتر تنظیمات نیازی به ویرایش نیست. هر فرزند باید روی 127.0.0.1 با security=none گوش بدهد.",
+        "help": "وقتی اتصالی روی این اینباند با هیچ کلاینتی تطبیق پیدا نمی‌کند، به جای دیگری ارجاع داده می‌شود. یک اینباند فرزند از پایین انتخاب کنید تا فیلدهای مسیریابی (SNI / ALPN / Path / xver) خودکار از روی transport آن پر شود، یا انتخاب‌گر را خالی بگذارید و مقدار Dest را مستقیم تنظیم کنید (مثلاً 8080 یا 127.0.0.1:8080) تا به یک سرور بیرونی مانند Nginx ارجاع شود. هر اینباند فرزند باید روی 127.0.0.1 با security=none گوش بدهد.",
         "empty": "هنوز فال‌بکی اضافه نشده",
         "add": "افزودن فال‌بک",
         "pickInbound": "یک اینباند انتخاب کنید",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "جستجوی ایمیل یا توضیح",
       "attachClientsStatusDisabled": "غیرفعال",
       "attachClientsSelectedCount": "{selected} از {total} انتخاب‌شده",
+      "attachExistingClients": "الصاق کاربران موجود…",
+      "attachExistingTitle": "الصاق کاربران موجود به «{remark}»",
+      "attachExistingDesc": "کاربران موجود ({count} کاربر در دسترس) را به این ورودی الصاق می‌کند — با همان UUID/رمز و ترافیک مشترک. کاربرانی که از قبل روی این ورودی هستند نادیده گرفته می‌شوند.",
+      "attachExistingNoClients": "هنوز هیچ کاربری وجود ندارد. ابتدا کاربر بسازید، سپس اینجا الصاق کنید.",
+      "attachExistingStatusAttached": "از قبل الصاق‌شده",
       "detachClients": "جداسازی کاربران",
       "detachClientsTitle": "جداسازی کاربران از «{remark}»",
       "detachClientsDesc": "کاربر(های) انتخابی را تنها از این ورودی حذف می‌کند. خود رکورد کاربر حفظ می‌شود (برای حذف کامل از Delete استفاده کنید). مبدا در مجموع {count} کاربر دارد.",
@@ -439,7 +447,10 @@
         "trafficGetError": "خطا در دریافت ترافیک‌ها",
         "getNewX25519CertError": "خطا در دریافت گواهی X25519.",
         "getNewmldsa65Error": "خطا در دریافت گواهی mldsa65.",
-        "getNewVlessEncError": "خطا در دریافت گواهی VlessEnc."
+        "getNewVlessEncError": "خطا در دریافت گواهی VlessEnc.",
+        "invalidClientField": "کلاینت {client}: فیلد {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (+{count} مورد دیگر)"
       },
       "form": {
         "moveUp": "بالا",
@@ -544,8 +555,8 @@
         "echKey": "کلید ECH",
         "echConfig": "پیکربندی ECH",
         "pinnedPeerCertSha256": "SHA-256 پین‌شدهٔ گواهی همتا",
-        "pinnedPeerCertSha256Tip": "هش‌های SHA-256 با کدگذاری Base64 از گواهی همتا. فقط در پنل — در پیکربندی xray سرور نوشته نمی‌شود، اما در لینک‌های اشتراک‌گذاری گنجانده می‌شود تا کلاینت‌ها بتوانند گواهی را پین کنند.",
-        "pinnedPeerCertSha256Placeholder": "هش(های) base64، با کاما جدا شوند",
+        "pinnedPeerCertSha256Tip": "هش‌های SHA-256 گواهی همتا به‌صورت رشتهٔ هگزادسیمال (مثل e8e2d3…)، با کاما جدا شوند. فقط در پنل — در پیکربندی xray سرور نوشته نمی‌شود، اما در لینک‌های اشتراک‌گذاری گنجانده می‌شود تا کلاینت‌ها بتوانند گواهی را پین کنند.",
+        "pinnedPeerCertSha256Placeholder": "هش(های) هگزادسیمال، با کاما جدا شوند",
         "generateRandomPin": "تولید هش تصادفی",
         "getNewEchCert": "دریافت گواهی ECH جدید",
         "show": "نمایش",
@@ -559,7 +570,8 @@
         "getNewCert": "دریافت گواهی جدید",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "دریافت Seed جدید"
+        "getNewSeed": "دریافت Seed جدید",
+        "listenHelp": "می‌توانید به‌جای پورت TCP یک مسیر سوکت یونیکس وارد کنید (مثلاً /run/xray/in.sock) تا روی سوکت گوش داده شود — در این حالت پورت را روی ۰ بگذارید."
       },
       "info": {
         "mode": "حالت",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "جستجوی ایمیل، توضیح، Sub ID، UUID، رمز، احراز...",
       "filterTitle": "فیلتر کاربران",
       "clearAllFilters": "پاک کردن همه",
+      "showingCount": "نمایش {shown} از {total}",
       "sortOldest": "قدیمی‌ترین",
       "sortNewest": "جدیدترین",
       "sortRecentlyUpdated": "اخیراً به‌روزشده",
@@ -826,6 +839,12 @@
       "panelVersion": "نسخه پنل",
       "actions": "عملیات",
       "probe": "بررسی فوری",
+      "updatePanel": "به‌روزرسانی پنل",
+      "updateSelected": "به‌روزرسانی انتخاب‌شده‌ها ({count})",
+      "updateAvailable": "به‌روزرسانی موجود",
+      "upToDate": "به‌روز",
+      "updateConfirmTitle": "{count} نود به آخرین نسخه به‌روزرسانی شوند؟",
+      "updateConfirmContent": "هر نود انتخاب‌شده آخرین نسخه را دانلود و روی آن ری‌استارت می‌شود. فقط نودهای فعال و آنلاین به‌روزرسانی می‌شوند.",
       "testConnection": "تست اتصال",
       "connectionOk": "اتصال موفق ({ms} میلی‌ثانیه)",
       "connectionFailed": "اتصال ناموفق",
@@ -847,8 +866,23 @@
         "deleted": "نود حذف شد",
         "test": "تست اتصال",
         "fillRequired": "نام، آدرس، پورت و توکن API الزامی است",
-        "probeFailed": "بررسی ناموفق"
-      }
+        "probeFailed": "بررسی ناموفق",
+        "updateStarted": "به‌روزرسانی پنل آغاز شد",
+        "updateResult": "به‌روزرسانی روی {ok} نود آغاز شد، {failed} ناموفق",
+        "updateNoneEligible": "حداقل یک نود آنلاین و فعال انتخاب کنید"
+      },
+      "tlsVerifyMode": "اعتبارسنجی TLS",
+      "tlsVerifyModeHint": "اینکه پنل گواهی HTTPS نود را چطور بررسی کند. Pin یا Skip برای گواهی‌های self-signed است (فقط نودهای https).",
+      "tlsVerify": "اعتبارسنجی (CA پیش‌فرض)",
+      "tlsPin": "Pin گواهی (SHA-256)",
+      "tlsSkip": "رد کردن اعتبارسنجی",
+      "tlsSkipWarning": "رد کردن اعتبارسنجی محافظت در برابر حملهٔ مرد میانی را از بین می‌برد و توکن API ممکن است شنود شود. ترجیحاً به‌جای آن گواهی را Pin کنید.",
+      "pinnedCert": "SHA-256 گواهیِ Pin‌شده",
+      "pinnedCertHint": "SHA-256 گواهیِ نود به‌صورت base64 یا hex. برای خواندنِ همین حالا از نود، از دکمهٔ Fetch استفاده کنید.",
+      "pinnedCertPlaceholder": "SHA-256 به‌صورت base64 یا hex",
+      "fetchPin": "دریافت",
+      "pinFetched": "گواهیِ فعلیِ نود دریافت شد",
+      "pinFetchFailed": "دریافت گواهی ممکن نشد"
     },
     "settings": {
       "title": "تنظیمات پنل",
@@ -1173,6 +1207,8 @@
         "tagRequired": "تگ الزامی است",
         "tagPlaceholder": "تگ-منحصربه‌فرد",
         "localIpPlaceholder": "IP محلی",
+        "dialerProxyPlaceholder": "یک خروجی برای زنجیره کردن انتخاب کنید",
+        "dialerProxyHint": "این خروجی را از طریق خروجی دیگری (با تگ) برقرار کن تا یک زنجیره پروکسی ساخته شود. برای اتصال مستقیم خالی بگذار.",
         "addressRequired": "آدرس الزامی است",
         "portRequired": "پورت الزامی است",
         "optional": "اختیاری",

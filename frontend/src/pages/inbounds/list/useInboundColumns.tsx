@@ -1,6 +1,7 @@
-import { useCallback, useMemo, type ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Popover, Switch, Tag, type TableColumnType } from 'antd';
+import { TeamOutlined } from '@ant-design/icons';
 
 import { SizeFormatter, IntlUtil, ColorUtils } from '@/utils';
 import { InfinityIcon } from '@/components/ui';
@@ -16,7 +17,7 @@ import {
   tunnelNetworkLabel,
   mixedNetworkLabel,
 } from './helpers';
-import type { ClientCountEntry, DBInboundRecord, RowAction, SortKey, SortOrder } from './types';
+import type { ClientCountEntry, DBInboundRecord, RowAction } from './types';
 
 interface UseInboundColumnsParams {
   hasAnyRemark: boolean;
@@ -26,8 +27,6 @@ interface UseInboundColumnsParams {
   subEnable: boolean;
   expireDiff: number;
   trafficDiff: number;
-  sortKey: SortKey | null;
-  sortOrder: SortOrder;
   onRowAction: (action: { key: RowAction; dbInbound: DBInboundRecord }) => void;
   onSwitchEnable: (dbInbound: DBInboundRecord, next: boolean) => void;
 }
@@ -40,20 +39,11 @@ export function useInboundColumns({
   subEnable,
   expireDiff,
   trafficDiff,
-  sortKey,
-  sortOrder,
   onRowAction,
   onSwitchEnable,
 }: UseInboundColumnsParams): TableColumnType<DBInboundRecord>[] {
   const { t } = useTranslation();
   const { datepicker } = useDatepicker();
-
-  const sorterFor = useCallback((key: SortKey) => ({
-    sorter: true as const,
-    showSorterTooltip: false,
-    sortOrder: sortKey === key ? sortOrder : null,
-    sortDirections: ['ascend' as const, 'descend' as const],
-  }), [sortKey, sortOrder]);
 
   return useMemo(() => {
     const cols: TableColumnType<DBInboundRecord>[] = [
@@ -63,7 +53,6 @@ export function useInboundColumns({
         key: 'id',
         align: 'right',
         width: 30,
-        ...sorterFor('id'),
       },
       {
         title: t('pages.inbounds.operate'),
@@ -84,7 +73,6 @@ export function useInboundColumns({
         key: 'enable',
         align: 'center',
         width: 35,
-        ...sorterFor('enable'),
         render: (_, record) => (
           <Switch
             checked={record.enable}
@@ -101,7 +89,6 @@ export function useInboundColumns({
         key: 'remark',
         align: 'center',
         width: 60,
-        ...sorterFor('remark'),
       });
     }
 
@@ -111,7 +98,6 @@ export function useInboundColumns({
         key: 'node',
         align: 'center',
         width: 60,
-        ...sorterFor('node'),
         render: (_, record) => {
           if (record.nodeId == null) {
             return <Tag color="default">{t('pages.inbounds.localPanel')}</Tag>;
@@ -134,14 +120,12 @@ export function useInboundColumns({
         key: 'port',
         align: 'center',
         width: 40,
-        ...sorterFor('port'),
       },
       {
         title: t('pages.inbounds.protocol'),
         key: 'protocol',
         align: 'left',
         width: 130,
-        ...sorterFor('protocol'),
         render: (_, record) => {
           const tags: ReactElement[] = [<Tag key="p" color="purple">{record.protocol}</Tag>];
           if (record.isWireguard || record.isHysteria) {
@@ -169,16 +153,27 @@ export function useInboundColumns({
         title: t('clients'),
         key: 'clients',
         align: 'left',
-        width: 50,
-        ...sorterFor('clients'),
+        width: 110,
         render: (_, record) => {
           const cc = clientCount[record.id];
           if (!cc) return null;
           return (
             <>
-              <Tag color="green" className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>
-                {cc.clients}
+              <Tag className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>
+                <TeamOutlined /> {cc.clients}
               </Tag>
+              {cc.active.length > 0 && (
+                <Popover
+                  title={t('subscription.active')}
+                  content={(
+                    <div className="client-email-list">
+                      {cc.active.map((e) => <div key={e}>{e}</div>)}
+                    </div>
+                  )}
+                >
+                  <Tag color="green" className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>{cc.active.length}</Tag>
+                </Popover>
+              )}
               {cc.deactive.length > 0 && (
                 <Popover
                   title={t('disabled')}
@@ -203,18 +198,6 @@ export function useInboundColumns({
                   <Tag color="red" className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>{cc.depleted.length}</Tag>
                 </Popover>
               )}
-              {cc.expiring.length > 0 && (
-                <Popover
-                  title={t('depletingSoon')}
-                  content={(
-                    <div className="client-email-list">
-                      {cc.expiring.map((e) => <div key={e}>{e}</div>)}
-                    </div>
-                  )}
-                >
-                  <Tag color="orange" className="client-count-tag" style={{ margin: 0, padding: '0 2px' }}>{cc.expiring.length}</Tag>
-                </Popover>
-              )}
               {cc.online.length > 0 && (
                 <Popover
                   title={t('online')}
@@ -236,7 +219,6 @@ export function useInboundColumns({
         key: 'traffic',
         align: 'center',
         width: 90,
-        ...sorterFor('traffic'),
         render: (_, record) => (
           <Popover
             content={(
@@ -269,7 +251,6 @@ export function useInboundColumns({
         key: 'expiryTime',
         align: 'center',
         width: 40,
-        ...sorterFor('expiryTime'),
         render: (_, record) => {
           if (record.expiryTime > 0) {
             return (
@@ -286,5 +267,5 @@ export function useInboundColumns({
     );
 
     return cols;
-  }, [t, hasAnyRemark, hasActiveNode, nodesById, clientCount, subEnable, expireDiff, trafficDiff, datepicker, onRowAction, onSwitchEnable, sorterFor]);
+  }, [t, hasAnyRemark, hasActiveNode, nodesById, clientCount, subEnable, expireDiff, trafficDiff, datepicker, onRowAction, onSwitchEnable]);
 }

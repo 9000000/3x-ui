@@ -9,7 +9,7 @@ import { isSSMultiUser } from '@/lib/xray/protocol-capabilities';
 import { setDatepicker } from '@/hooks/useDatepicker';
 import { keys } from '@/api/queryKeys';
 import { SlimInboundListSchema, LastOnlineMapSchema, InboundDetailSchema } from '@/schemas/inbound';
-import { OnlinesSchema } from '@/schemas/client';
+import { OnlinesSchema, OnlineByNodeSchema } from '@/schemas/client';
 import { DefaultsPayloadSchema, type DefaultsPayload } from '@/schemas/defaults';
 
 export interface SubSettings {
@@ -18,6 +18,10 @@ export interface SubSettings {
   subURI: string;
   subJsonURI: string;
   subJsonEnable: boolean;
+  // Configured public host (Sub Domain, else Web Domain) used as the share/QR
+  // link host when the panel is reached on a loopback address. Empty if neither
+  // is set.
+  publicHost: string;
 }
 
 type DBInboundInstance = InstanceType<typeof DBInbound>;
@@ -54,6 +58,25 @@ async function fetchOnlineClients(): Promise<string[]> {
   return Array.isArray(validated.obj) ? validated.obj : [];
 }
 
+// Online emails grouped by node id (local panel = key 0), used to scope the
+// per-inbound online rollup so a client online on one node is not shown
+// online on every node's inbounds.
+async function fetchOnlineClientsByNode(): Promise<Record<string, string[]>> {
+  const msg = await HttpUtil.post('/panel/api/clients/onlinesByNode', undefined, { silent: true });
+  if (!msg?.success) throw new Error(msg?.msg || 'Failed to fetch onlinesByNode');
+  const validated = parseMsg(msg, OnlineByNodeSchema, 'clients/onlinesByNode');
+  return (validated.obj && typeof validated.obj === 'object') ? (validated.obj as Record<string, string[]>) : {};
+}
+
+function toNodeOnlineMap(data: Record<string, string[]>): Map<number, Set<string>> {
+  const map = new Map<number, Set<string>>();
+  for (const [key, emails] of Object.entries(data)) {
+    if (!Array.isArray(emails)) continue;
+    map.set(Number(key), new Set(emails));
+  }
+  return map;
+}
+
 async function fetchLastOnlineMap(): Promise<Record<string, number>> {
   const msg = await HttpUtil.post('/panel/api/clients/lastOnline', undefined, { silent: true });
   if (!msg?.success) throw new Error(msg?.msg || 'Failed to fetch lastOnline');
@@ -80,6 +103,12 @@ export function useInbounds() {
   const onlinesQuery = useQuery({
     queryKey: keys.clients.onlines(),
     queryFn: fetchOnlineClients,
+    staleTime: Infinity,
+  });
+
+  const onlinesByNodeQuery = useQuery({
+    queryKey: keys.clients.onlinesByNode(),
+    queryFn: fetchOnlineClientsByNode,
     staleTime: Infinity,
   });
 
@@ -110,7 +139,8 @@ export function useInbounds() {
     subURI: defaults.subURI || '',
     subJsonURI: defaults.subJsonURI || '',
     subJsonEnable: !!defaults.subJsonEnable,
-  }), [defaults.subEnable, defaults.subTitle, defaults.subURI, defaults.subJsonURI, defaults.subJsonEnable]);
+    publicHost: defaults.subDomain || defaults.webDomain || '',
+  }), [defaults.subEnable, defaults.subTitle, defaults.subURI, defaults.subJsonURI, defaults.subJsonEnable, defaults.subDomain, defaults.webDomain]);
 
   useEffect(() => {
     if (defaults.datepicker) setDatepicker(datepicker);
@@ -135,6 +165,10 @@ export function useInbounds() {
   const onlineClientsRef = useRef<string[]>([]);
   onlineClientsRef.current = onlineClients;
 
+  // Online emails keyed by node id (local inbounds = key 0). The rollup
+  // reads this so each inbound only counts clients online on its own node.
+  const onlineByNodeRef = useRef<Map<number, Set<string>>>(new Map());
+
   const [lastOnlineMap, setLastOnlineMap] = useState<Record<string, number>>({});
 
   const rollupClients = useCallback(
@@ -142,14 +176,7 @@ export function useInbounds() {
       const clientStats = Array.isArray((dbInbound as { clientStats?: unknown }).clientStats)
         ? (dbInbound as unknown as { clientStats: { email: string; total: number; up: number; down: number; expiryTime: number }[] }).clientStats
         : [];
-      const allClients = inbound?.clients || [];
-      const statsEmails = new Set<string>();
-      for (const s of clientStats) {
-        if (s && s.email) statsEmails.add(s.email);
-      }
-      const clients = clientStats.length > 0
-        ? allClients.filter((c) => c && c.email && statsEmails.has(c.email))
-        : allClients;
+      const clients = inbound?.clients || [];
       const active: string[] = [];
       const deactive: string[] = [];
       const depleted: string[] = [];
@@ -158,12 +185,14 @@ export function useInbounds() {
       const comments = new Map<string, string>();
       const now = Date.now();
 
+      const nodeOnline = onlineByNodeRef.current.get(dbInbound.nodeId ?? 0);
+
       if (dbInbound.enable) {
         for (const client of clients) {
           if (client.comment && client.email) comments.set(client.email, client.comment);
           if (client.enable) {
             if (client.email) active.push(client.email);
-            if (client.email && onlineClientsRef.current.includes(client.email)) online.push(client.email);
+            if (client.email && nodeOnline?.has(client.email)) online.push(client.email);
           } else if (client.email) {
             deactive.push(client.email);
           }
@@ -245,20 +274,33 @@ export function useInbounds() {
   }, [onlinesQuery.data]);
 
   useEffect(() => {
+    if (onlinesByNodeQuery.data) {
+      onlineByNodeRef.current = toNodeOnlineMap(onlinesByNodeQuery.data);
+      rebuildClientCount();
+    }
+  }, [onlinesByNodeQuery.data, rebuildClientCount]);
+
+  useEffect(() => {
     if (lastOnlineQuery.data) setLastOnlineMap(lastOnlineQuery.data);
   }, [lastOnlineQuery.data]);
 
-  const fetched = slimQuery.data !== undefined && defaultsQuery.data !== undefined;
+  const fetched = (slimQuery.data !== undefined || slimQuery.isError) && (defaultsQuery.data !== undefined || defaultsQuery.isError);
+  const fetchErrorSource = slimQuery.error || defaultsQuery.error;
+  const fetchError = fetchErrorSource ? (fetchErrorSource as Error).message : '';
 
   const refresh = useCallback(async () => {
     // Invalidate at the inbounds root so both `slim` (this page's list)
     // and `options` (the Clients page's inbound picker) refetch. Without
     // the options bucket, a freshly-created inbound stays invisible in
-    // the client add/edit modal until a full page reload.
+    // the client add/edit modal until a full page reload. The xray config
+    // response carries inboundTags for the routing-rule tag picker, so it
+    // needs invalidating too or that list stays stale until a hard refresh.
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: keys.inbounds.root() }),
       queryClient.invalidateQueries({ queryKey: keys.clients.onlines() }),
+      queryClient.invalidateQueries({ queryKey: keys.clients.onlinesByNode() }),
       queryClient.invalidateQueries({ queryKey: keys.clients.lastOnline() }),
+      queryClient.invalidateQueries({ queryKey: keys.xray.config() }),
     ]);
   }, [queryClient]);
 
@@ -286,10 +328,13 @@ export function useInbounds() {
   const applyTrafficEvent = useCallback(
     (payload: unknown) => {
       if (!payload || typeof payload !== 'object') return;
-      const p = payload as { onlineClients?: string[]; lastOnlineMap?: Record<string, number> };
+      const p = payload as { onlineClients?: string[]; onlineByNode?: Record<string, string[]>; lastOnlineMap?: Record<string, number> };
       if (Array.isArray(p.onlineClients)) {
         onlineClientsRef.current = p.onlineClients;
         setOnlineClients(p.onlineClients);
+      }
+      if (p.onlineByNode && typeof p.onlineByNode === 'object') {
+        onlineByNodeRef.current = toNodeOnlineMap(p.onlineByNode);
       }
       if (p.lastOnlineMap && typeof p.lastOnlineMap === 'object') {
         setLastOnlineMap((prev) => ({ ...prev, ...p.lastOnlineMap! }));
@@ -373,6 +418,7 @@ export function useInbounds() {
 
   return {
     fetched,
+    fetchError,
     dbInbounds,
     clientCount,
     onlineClients,

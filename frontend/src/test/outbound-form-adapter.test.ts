@@ -74,6 +74,25 @@ describe('outbound-form-adapter: round-trip', () => {
     });
   });
 
+  it('vless preserves a non-none encryption value (post-quantum)', () => {
+    const enc = 'mlkem768x25519plus.native.0rtt.G3cdPSd1-NnlpTbWNSM5vHsT5VNzWfFzYSKwbUMnV1Y';
+    const wire = {
+      protocol: 'vless',
+      settings: {
+        address: 'srv',
+        port: 443,
+        id: '11111111-2222-4333-8444-555555555555',
+        flow: '',
+        encryption: enc,
+      },
+    };
+    const form = rawOutboundToFormValues(wire);
+    if (form.protocol === 'vless') {
+      expect(form.settings.encryption).toBe(enc);
+    }
+    expect((formValuesToWirePayload(form).settings as Record<string, unknown>).encryption).toBe(enc);
+  });
+
   it('vless emits reverse + sniffing when reverseTag is set', () => {
     const wire = {
       protocol: 'vless',
@@ -197,7 +216,7 @@ describe('outbound-form-adapter: round-trip', () => {
     expect(withType.settings).toEqual({ response: { type: 'http' } });
   });
 
-  it('dns rules normalize qtype numeric strings and split domains', () => {
+  it('dns rules normalize qType numeric strings, split domains, carry rCode', () => {
     const wire = {
       protocol: 'dns',
       settings: {
@@ -205,16 +224,26 @@ describe('outbound-form-adapter: round-trip', () => {
         rewriteAddress: '1.1.1.1',
         rewritePort: 53,
         rules: [
-          { action: 'direct', qtype: 'A,AAAA', domain: ['example.com', 'ext.org'] },
-          { action: 'reject', qtype: 28, domain: 'blocked.com' },
+          { action: 'direct', qType: 'A,AAAA', domain: ['example.com', 'ext.org'] },
+          { action: 'return', qType: 28, domain: 'blocked.com', rCode: 3 },
         ],
       },
     };
     const back = formValuesToWirePayload(rawOutboundToFormValues(wire));
     const settings = back.settings as Record<string, unknown>;
     const rules = settings.rules as Array<Record<string, unknown>>;
-    expect(rules[0]).toEqual({ action: 'direct', qtype: 'A,AAAA', domain: ['example.com', 'ext.org'] });
-    expect(rules[1]).toEqual({ action: 'reject', qtype: 28, domain: ['blocked.com'] });
+    expect(rules[0]).toEqual({ action: 'direct', qType: 'A,AAAA', domain: ['example.com', 'ext.org'] });
+    expect(rules[1]).toEqual({ action: 'return', qType: 28, domain: ['blocked.com'], rCode: 3 });
+  });
+
+  it('dns rules read the legacy qtype wire key for back-compat', () => {
+    const wire = {
+      protocol: 'dns',
+      settings: { rules: [{ action: 'direct', qtype: 'TXT' }] },
+    };
+    const back = formValuesToWirePayload(rawOutboundToFormValues(wire));
+    const rules = (back.settings as Record<string, unknown>).rules as Array<Record<string, unknown>>;
+    expect(rules[0]).toEqual({ action: 'direct', qType: 'TXT' });
   });
 
   it('freedom emits domainStrategy/redirect/fragment conditionally', () => {
@@ -235,16 +264,41 @@ describe('outbound-form-adapter: round-trip', () => {
       settings: {
         domainStrategy: 'UseIPv4',
         redirect: '1.1.1.1',
+        userLevel: 3,
         proxyProtocol: 2,
         fragment: { packets: 'tlshello', length: '100-200' },
+        noises: [{ type: 'rand', packet: '10-20', delay: '10-16', applyTo: 'ipv4' }],
       },
     }));
     expect(filled.settings).toMatchObject({
       domainStrategy: 'UseIPv4',
       redirect: '1.1.1.1',
+      userLevel: 3,
       proxyProtocol: 2,
       fragment: { packets: 'tlshello', length: '100-200' },
+      noises: [{ type: 'rand', packet: '10-20', delay: '10-16', applyTo: 'ipv4' }],
     });
+  });
+
+  it('freedom tolerates settings without a fragment object (issue #4686)', () => {
+    const values = {
+      protocol: 'freedom',
+      tag: 'direct',
+      settings: {
+        domainStrategy: '',
+        redirect: '',
+        proxyProtocol: 0,
+        noises: [],
+        finalRules: [
+          { action: 'block', network: '', port: '', ip: ['geoip:private'], blockDelay: '' },
+        ],
+      },
+    } as unknown as Parameters<typeof formValuesToWirePayload>[0];
+
+    expect(() => formValuesToWirePayload(values)).not.toThrow();
+    const back = formValuesToWirePayload(values);
+    expect((back.settings as { fragment?: unknown }).fragment).toBeUndefined();
+    expect((back.settings as { finalRules?: unknown[] }).finalRules).toHaveLength(1);
   });
 
   it('freedom omits proxyProtocol when disabled (0)', () => {

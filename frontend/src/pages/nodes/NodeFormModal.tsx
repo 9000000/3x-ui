@@ -26,6 +26,7 @@ interface NodeFormModalProps {
   mode: Mode;
   node: NodeRecord | null;
   testConnection: (payload: Partial<NodeRecord>) => Promise<Msg<ProbeResult>>;
+  fetchFingerprint: (payload: Partial<NodeRecord>) => Promise<Msg<string>>;
   save: (payload: Partial<NodeRecord>) => Promise<Msg<unknown>>;
   onOpenChange: (open: boolean) => void;
 }
@@ -42,6 +43,8 @@ function defaultValues(): NodeFormValues {
     apiToken: '',
     enable: true,
     allowPrivateAddress: false,
+    tlsVerifyMode: 'verify',
+    pinnedCertSha256: '',
   };
 }
 
@@ -50,6 +53,7 @@ export default function NodeFormModal({
   mode,
   node,
   testConnection,
+  fetchFingerprint,
   save,
   onOpenChange,
 }: NodeFormModalProps) {
@@ -59,7 +63,10 @@ export default function NodeFormModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [fetchingPin, setFetchingPin] = useState(false);
   const [testResult, setTestResult] = useState<ProbeResult | null>(null);
+  const scheme = Form.useWatch('scheme', form) ?? 'https';
+  const tlsVerifyMode = Form.useWatch('tlsVerifyMode', form) ?? 'verify';
 
   useEffect(() => {
     if (!open) return;
@@ -72,6 +79,7 @@ export default function NodeFormModal({
         scheme: (node.scheme as 'http' | 'https') || base.scheme,
       }
       : base;
+    if (next.scheme === 'http') next.tlsVerifyMode = 'skip';
     form.resetFields();
     form.setFieldsValue(next);
     setTestResult(null);
@@ -94,6 +102,8 @@ export default function NodeFormModal({
       apiToken: values.apiToken.trim(),
       enable: values.enable,
       allowPrivateAddress: values.allowPrivateAddress,
+      tlsVerifyMode: values.tlsVerifyMode,
+      pinnedCertSha256: values.tlsVerifyMode === 'pin' ? values.pinnedCertSha256.trim() : '',
     };
   }
 
@@ -118,6 +128,27 @@ export default function NodeFormModal({
     }
   }
 
+  async function onFetchPin() {
+    try {
+      await form.validateFields(['address', 'port']);
+    } catch {
+      return;
+    }
+    setFetchingPin(true);
+    try {
+      const payload = buildPayload(form.getFieldsValue(true));
+      const msg = await fetchFingerprint(payload);
+      if (msg?.success && msg.obj) {
+        form.setFieldValue('pinnedCertSha256', msg.obj);
+        messageApi.success(t('pages.nodes.pinFetched'));
+      } else {
+        messageApi.error(msg?.msg || t('pages.nodes.pinFetchFailed'));
+      }
+    } finally {
+      setFetchingPin(false);
+    }
+  }
+
   async function onFinish(values: NodeFormValues) {
     const result = NodeFormSchema.safeParse(values);
     if (!result.success) {
@@ -126,7 +157,15 @@ export default function NodeFormModal({
     }
     setSubmitting(true);
     try {
-      const msg = await save(buildPayload(result.data));
+      const payload = buildPayload(result.data);
+      const test = await testConnection(payload);
+      const probe = test?.success ? test.obj : null;
+      if (!probe || probe.status !== 'online') {
+        setTestResult(probe ?? { status: 'offline', error: test?.msg || t('pages.nodes.connectionFailed') });
+        return;
+      }
+      setTestResult(probe);
+      const msg = await save(payload);
       if (msg?.success) {
         onOpenChange(false);
       }
@@ -184,6 +223,9 @@ export default function NodeFormModal({
                     { value: 'https', label: 'https' },
                     { value: 'http', label: 'http' },
                   ]}
+                  onChange={(value) => {
+                    if (value === 'http') form.setFieldValue('tlsVerifyMode', 'skip');
+                  }}
                 />
               </Form.Item>
             </Col>
@@ -232,6 +274,45 @@ export default function NodeFormModal({
           >
             <Switch />
           </Form.Item>
+
+          <Form.Item
+            label={t('pages.nodes.tlsVerifyMode')}
+            name="tlsVerifyMode"
+            extra={t('pages.nodes.tlsVerifyModeHint')}
+          >
+            <Select
+              disabled={scheme === 'http'}
+              options={[
+                { value: 'verify', label: t('pages.nodes.tlsVerify') },
+                { value: 'pin', label: t('pages.nodes.tlsPin') },
+                { value: 'skip', label: t('pages.nodes.tlsSkip') },
+              ]}
+            />
+          </Form.Item>
+
+          {tlsVerifyMode === 'skip' && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              title={t('pages.nodes.tlsSkipWarning')}
+            />
+          )}
+
+          {tlsVerifyMode === 'pin' && (
+            <Form.Item
+              label={t('pages.nodes.pinnedCert')}
+              name="pinnedCertSha256"
+              extra={t('pages.nodes.pinnedCertHint')}
+            >
+              <Input.Search
+                placeholder={t('pages.nodes.pinnedCertPlaceholder')}
+                enterButton={t('pages.nodes.fetchPin')}
+                loading={fetchingPin}
+                onSearch={onFetchPin}
+              />
+            </Form.Item>
+          )}
 
           <Form.Item
             label={t('pages.nodes.apiToken')}

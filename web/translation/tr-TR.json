@@ -246,7 +246,10 @@
       "importDatabaseError": "Veritabanı içe aktarılırken bir hata oluştu",
       "readDatabaseError": "Veritabanı okunurken bir hata oluştu",
       "getDatabaseError": "Veritabanı alınırken bir hata oluştu",
-      "getConfigError": "Yapılandırma dosyası alınırken bir hata oluştu"
+      "getConfigError": "Yapılandırma dosyası alınırken bir hata oluştu",
+      "backupPostgresNote": "Bu panel PostgreSQL üzerinde çalışıyor. «Yedekle» bir pg_dump arşivi (.dump) indirir, «Geri Yükle» ise onu pg_restore ile geri yükler. Sunucuda PostgreSQL istemci araçlarının (pg_dump ve pg_restore) kurulu olması gerekir.",
+      "exportDatabasePgDesc": "Mevcut veritabanınızın PostgreSQL dökümünü (.dump) cihazınıza indirmek için tıklayın.",
+      "importDatabasePgDesc": "PostgreSQL veritabanınızı geri yüklemek için bir .dump dosyası seçip yüklemek üzere tıklayın. Bu, tüm mevcut verilerin yerini alır."
     },
     "inbounds": {
       "title": "Gelenler",
@@ -261,7 +264,7 @@
       "localPanel": "Yerel panel",
       "fallbacks": {
         "title": "Fallback'ler",
-        "help": "Bu inbound üzerindeki bir bağlantı hiçbir client ile eşleşmediğinde, başka bir inbound'a yönlendirilir. Aşağıdan bir child seçin; yönlendirme alanları (SNI / ALPN / Path / xver) onun transport'undan otomatik dolar — çoğu kurulum için ek ayar gerekmez. Her child 127.0.0.1 üzerinde security=none ile dinlemelidir.",
+        "help": "Bu inbound üzerindeki bir bağlantı hiçbir client ile eşleşmediğinde, başka bir yere yönlendirilir. Aşağıdan bir child inbound seçerek yönlendirme alanlarını (SNI / ALPN / Path / xver) transport'undan otomatik doldurun ya da seçimi boş bırakıp Dest değerini doğrudan girin (örn. 8080 veya 127.0.0.1:8080); böylece Nginx gibi harici bir sunucuya yönlendirebilirsiniz. Her child inbound 127.0.0.1 üzerinde security=none ile dinlemelidir.",
         "empty": "Henüz fallback yok",
         "add": "Fallback ekle",
         "pickInbound": "Bir inbound seç",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "Email veya yorum ara",
       "attachClientsStatusDisabled": "Devre dışı",
       "attachClientsSelectedCount": "{total} içinden {selected} seçildi",
+      "attachExistingClients": "Mevcut istemcileri bağla…",
+      "attachExistingTitle": "«{remark}» gelenine mevcut istemcileri bağla",
+      "attachExistingDesc": "Mevcut istemcileri ({count} uygun) bu gelene bağlar — aynı UUID/parola ve paylaşılan trafik. Zaten bu gelende olan istemciler atlanır.",
+      "attachExistingNoClients": "Henüz istemci yok. Önce istemci oluşturun, ardından buraya bağlayın.",
+      "attachExistingStatusAttached": "Zaten bağlı",
       "detachClients": "İstemcileri çöz",
       "detachClientsTitle": "«{remark}» gelenindeki istemcileri çöz",
       "detachClientsDesc": "Seçilen istemcileri yalnızca bu gelenden kaldırır. İstemci kayıtları korunur (tamamen kaldırmak için Delete kullanın). Kaynakta toplam {count} istemci var.",
@@ -439,7 +447,10 @@
         "trafficGetError": "Trafik bilgisi alınırken hata oluştu",
         "getNewX25519CertError": "X25519 sertifikası alınırken hata oluştu.",
         "getNewmldsa65Error": "mldsa65 sertifikası alınırken hata oluştu.",
-        "getNewVlessEncError": "VlessEnc sertifikası alınırken hata oluştu."
+        "getNewVlessEncError": "VlessEnc sertifikası alınırken hata oluştu.",
+        "invalidClientField": "Müşteri {client}: alan {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (+{count} tane daha)"
       },
       "form": {
         "moveUp": "Yukarı",
@@ -544,8 +555,8 @@
         "echKey": "ECH key",
         "echConfig": "ECH yapılandırması",
         "pinnedPeerCertSha256": "Sabitlenmiş Peer Sertifikası SHA-256",
-        "pinnedPeerCertSha256Tip": "Peer sertifikasının Base64 kodlu SHA-256 hash'leri. Sadece panel — sunucunun xray yapılandırmasına yazılmaz, ancak istemcilerin sertifikayı sabitleyebilmesi için paylaşım bağlantılarına eklenir.",
-        "pinnedPeerCertSha256Placeholder": "base64 hash(ler), virgülle ayrılmış",
+        "pinnedPeerCertSha256Tip": "Peer sertifikasının SHA-256 hash'leri onaltılık (hex) dizge olarak (örn. e8e2d3…), virgülle ayrılmış. Sadece panel — sunucunun xray yapılandırmasına yazılmaz, ancak istemcilerin sertifikayı sabitleyebilmesi için paylaşım bağlantılarına eklenir.",
+        "pinnedPeerCertSha256Placeholder": "onaltılık (hex) hash(ler), virgülle ayrılmış",
         "generateRandomPin": "Rastgele hash üret",
         "getNewEchCert": "Yeni ECH sertifikası al",
         "show": "Göster",
@@ -559,7 +570,8 @@
         "getNewCert": "Yeni sertifika al",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "Yeni Seed al"
+        "getNewSeed": "Yeni Seed al",
+        "listenHelp": "TCP portu yerine bir Unix soket yolu da girebilirsiniz (örn. /run/xray/in.sock) — bu durumda Portu 0 olarak ayarlayın."
       },
       "info": {
         "mode": "Mod",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "Email, yorum, sub ID, UUID, parola, auth ara…",
       "filterTitle": "İstemcileri filtrele",
       "clearAllFilters": "Tümünü temizle",
+      "showingCount": "{total} içinden {shown} gösteriliyor",
       "sortOldest": "Önce en eski",
       "sortNewest": "Önce en yeni",
       "sortRecentlyUpdated": "Son güncellenen",
@@ -807,7 +820,7 @@
       "scheme": "Şema",
       "address": "Adres",
       "port": "Port",
-      "basePath": "Base Path",
+      "basePath": "Temel Yol",
       "apiToken": "API Token",
       "apiTokenPlaceholder": "Uzak panelin Ayarlar sayfasındaki token",
       "apiTokenHint": "Uzak panel API token'ını Ayarlar → API Token altında gösterir.",
@@ -826,6 +839,12 @@
       "panelVersion": "Panel sürümü",
       "actions": "İşlemler",
       "probe": "Şimdi Test Et",
+      "updatePanel": "Paneli Güncelle",
+      "updateSelected": "Seçilenleri Güncelle ({count})",
+      "updateAvailable": "Güncelleme mevcut",
+      "upToDate": "Güncel",
+      "updateConfirmTitle": "{count} düğüm en son sürüme güncellensin mi?",
+      "updateConfirmContent": "Seçilen her düğüm en son sürümü indirir ve yeniden başlatılır. Yalnızca etkin ve çevrimiçi düğümler güncellenir.",
       "testConnection": "Bağlantıyı Test Et",
       "connectionOk": "Bağlantı tamam ({ms} ms)",
       "connectionFailed": "Bağlantı başarısız",
@@ -847,8 +866,23 @@
         "deleted": "Düğüm silindi",
         "test": "Bağlantıyı test et",
         "fillRequired": "Ad, adres, port ve API token gereklidir",
-        "probeFailed": "Test başarısız"
-      }
+        "probeFailed": "Test başarısız",
+        "updateStarted": "Panel güncellemesi başlatıldı",
+        "updateResult": "{ok} düğümde güncelleme başlatıldı, {failed} başarısız",
+        "updateNoneEligible": "En az bir çevrimiçi ve etkin düğüm seçin"
+      },
+      "tlsVerifyMode": "TLS doğrulaması",
+      "tlsVerifyModeHint": "Panelin düğümün HTTPS sertifikasını nasıl doğrulayacağı. Sabitle veya Atla, kendinden imzalı sertifikalar içindir (yalnızca https düğümleri).",
+      "tlsVerify": "Doğrula (varsayılan CA)",
+      "tlsPin": "Sertifikayı sabitle (SHA-256)",
+      "tlsSkip": "Doğrulamayı atla",
+      "tlsSkipWarning": "Doğrulamayı atlamak, ortadaki adam saldırılarına karşı korumayı kaldırır — API anahtarı ele geçirilebilir. Bunun yerine sertifikayı sabitlemeniz önerilir.",
+      "pinnedCert": "Sabitlenen sertifika SHA-256",
+      "pinnedCertHint": "Düğüm sertifikasının base64 veya hex biçiminde SHA-256 değeri. Şimdi düğümden okumak için Getir'i kullanın.",
+      "pinnedCertPlaceholder": "base64 veya hex SHA-256",
+      "fetchPin": "Getir",
+      "pinFetched": "Düğümün geçerli sertifikası alındı",
+      "pinFetchFailed": "Sertifika alınamadı"
     },
     "settings": {
       "title": "Panel Ayarları",
@@ -1173,6 +1207,8 @@
         "tagRequired": "Etiket gereklidir",
         "tagPlaceholder": "benzersiz-etiket",
         "localIpPlaceholder": "yerel IP",
+        "dialerProxyPlaceholder": "Zincirlemek için bir giden seçin",
+        "dialerProxyHint": "Bir proxy zinciri oluşturmak için bu gideni başka bir giden üzerinden (etikete göre) bağlayın. Doğrudan bağlanmak için boş bırakın.",
         "addressRequired": "Adres gereklidir",
         "portRequired": "Port gereklidir",
         "optional": "opsiyonel",

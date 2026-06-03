@@ -11,14 +11,20 @@
 *.swo
 
 # Node modules & Build outputs
-frontend/node_modules
+**/node_modules
 web/dist
 
 # Go build artifacts
 build/
+build
 x-ui
 x-ui.db
 *.db
+
+# Cert & DB dirs
+db
+cert
+pgdata
 
 # Local env files
 .env

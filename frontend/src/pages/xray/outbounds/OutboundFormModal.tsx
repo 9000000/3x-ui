@@ -168,7 +168,7 @@ export default function OutboundFormModal({
     if (existing.hysteriaSettings) slice.hysteriaSettings = existing.hysteriaSettings;
     if (existing.tlsSettings) slice.tlsSettings = existing.tlsSettings;
     form.setFieldValue('streamSettings', slice);
-  }, [protocol, network, security]);
+  }, [protocol, network, security, form]);
 
   const wgSecretKey = Form.useWatch(['settings', 'secretKey'], form) as string | undefined;
   useEffect(() => {
@@ -575,7 +575,9 @@ export default function OutboundFormModal({
 
                     {security === 'reality' && realityAllowed && <RealityForm />}
 
-                    {((streamAllowed && network) || !streamAllowed) && <SockoptForm form={form} />}
+                    {((streamAllowed && network) || !streamAllowed) && (
+                      <SockoptForm form={form} outboundTags={existingTags} />
+                    )}
 
                     <FinalMaskForm
                       name={['streamSettings', 'finalmask']}

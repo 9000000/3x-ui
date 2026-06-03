@@ -1,5 +1,8 @@
 # Set default behavior to automatically normalize line endings
 * text=auto
 
-# Force bash scripts to always use LF line endings on all OSs
+# Shell scripts must stay LF so the Docker build works when the repo is
+# checked out on Windows (CRLF breaks the script shebang -> exit 127).
 *.sh text eol=lf
+DockerInit.sh text eol=lf
+DockerEntrypoint.sh text eol=lf

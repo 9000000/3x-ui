@@ -12,7 +12,7 @@ import (
 func TestSeedClientsFromInboundJSON_IsIdempotentAgainstExistingClients(t *testing.T) {
 	dbDir := t.TempDir()
 	t.Setenv("XUI_DB_FOLDER", dbDir)
-	if err := InitDB(filepath.Join(dbDir, "3x-ui.db")); err != nil {
+	if err := InitDB(filepath.Join(dbDir, "x-ui.db")); err != nil {
 		t.Fatalf("InitDB failed: %v", err)
 	}
 	t.Cleanup(func() { _ = CloseDB() })
@@ -74,7 +74,7 @@ func TestSeedClientsFromInboundJSON_IsIdempotentAgainstExistingClients(t *testin
 func TestNormalizeInboundClientSubId_FillsMissingAndPreservesExisting(t *testing.T) {
 	dbDir := t.TempDir()
 	t.Setenv("XUI_DB_FOLDER", dbDir)
-	if err := InitDB(filepath.Join(dbDir, "3x-ui.db")); err != nil {
+	if err := InitDB(filepath.Join(dbDir, "x-ui.db")); err != nil {
 		t.Fatalf("InitDB failed: %v", err)
 	}
 	t.Cleanup(func() { _ = CloseDB() })
@@ -133,7 +133,7 @@ func TestNormalizeInboundClientSubId_FillsMissingAndPreservesExisting(t *testing
 	}
 
 	subIdPattern := regexp.MustCompile(`^[0-9a-z]{16}$`)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		obj := clients[i].(map[string]any)
 		sub, _ := obj["subId"].(string)
 		if !subIdPattern.MatchString(sub) {

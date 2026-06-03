@@ -246,7 +246,10 @@
       "importDatabaseError": "Ocorreu um erro ao importar o banco de dados",
       "readDatabaseError": "Ocorreu um erro ao ler o banco de dados",
       "getDatabaseError": "Ocorreu um erro ao recuperar o banco de dados",
-      "getConfigError": "Ocorreu um erro ao recuperar o arquivo de configuração"
+      "getConfigError": "Ocorreu um erro ao recuperar o arquivo de configuração",
+      "backupPostgresNote": "Este painel é executado em PostgreSQL. «Backup» baixa um arquivo pg_dump (.dump) e «Restaurar» o recarrega com pg_restore. O servidor precisa ter as ferramentas cliente do PostgreSQL (pg_dump e pg_restore) instaladas.",
+      "exportDatabasePgDesc": "Clique para baixar um dump do PostgreSQL (.dump) do seu banco de dados atual para o seu dispositivo.",
+      "importDatabasePgDesc": "Clique para selecionar e enviar um arquivo .dump para restaurar seu banco de dados PostgreSQL. Isso substitui todos os dados atuais."
     },
     "inbounds": {
       "title": "Entradas",
@@ -261,7 +264,7 @@
       "localPanel": "Painel local",
       "fallbacks": {
         "title": "Fallbacks",
-        "help": "Quando uma conexão neste inbound não corresponde a nenhum cliente, redirecione-a para outro inbound. Escolha um filho abaixo e os campos de roteamento (SNI / ALPN / Path / xver) são preenchidos automaticamente a partir do transporte dele — a maioria das configurações não precisa de mais ajustes. Cada filho deve escutar em 127.0.0.1 com security=none.",
+        "help": "Quando uma conexão neste inbound não corresponde a nenhum cliente, redirecione-a para outro lugar. Escolha um inbound filho abaixo para preencher automaticamente os campos de roteamento (SNI / ALPN / Path / xver) a partir do transporte dele, ou deixe o seletor vazio e defina Dest diretamente (ex.: 8080 ou 127.0.0.1:8080) para rotear para um servidor externo como o Nginx. Cada inbound filho deve escutar em 127.0.0.1 com security=none.",
         "empty": "Ainda sem fallbacks",
         "add": "Adicionar fallback",
         "pickInbound": "Escolha um inbound",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "Buscar email ou comentário",
       "attachClientsStatusDisabled": "Desabilitado",
       "attachClientsSelectedCount": "{selected} de {total} selecionado(s)",
+      "attachExistingClients": "Associar clientes existentes…",
+      "attachExistingTitle": "Associar clientes existentes a «{remark}»",
+      "attachExistingDesc": "Associa os clientes existentes ({count} disponíveis) a esta entrada — mesmo UUID/senha e tráfego compartilhado. Clientes que já estão nela são ignorados.",
+      "attachExistingNoClients": "Ainda não há clientes. Crie clientes primeiro e depois associe-os aqui.",
+      "attachExistingStatusAttached": "Já associado",
       "detachClients": "Desassociar clientes",
       "detachClientsTitle": "Desassociar clientes de «{remark}»",
       "detachClientsDesc": "Remove o(s) cliente(s) selecionado(s) apenas desta entrada. Os registros são mantidos (use Delete para remover completamente). A origem tem {count} cliente(s) no total.",
@@ -439,7 +447,10 @@
         "trafficGetError": "Erro ao obter tráfegos",
         "getNewX25519CertError": "Erro ao obter o certificado X25519.",
         "getNewmldsa65Error": "Erro ao obter o certificado mldsa65.",
-        "getNewVlessEncError": "Erro ao obter o certificado VlessEnc."
+        "getNewVlessEncError": "Erro ao obter o certificado VlessEnc.",
+        "invalidClientField": "Cliente {client}: campo {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (+{count} mais)"
       },
       "form": {
         "moveUp": "Mover para cima",
@@ -544,8 +555,8 @@
         "echKey": "ECH key",
         "echConfig": "Config ECH",
         "pinnedPeerCertSha256": "SHA-256 do cert. do par fixado",
-        "pinnedPeerCertSha256Tip": "Hashes SHA-256 codificados em Base64 do certificado do par. Apenas no painel — não é gravado na config xray do servidor, mas é incluído nos links de compartilhamento para que clientes possam fixar o certificado.",
-        "pinnedPeerCertSha256Placeholder": "hash(es) base64, separados por vírgula",
+        "pinnedPeerCertSha256Tip": "Hashes SHA-256 do certificado do par como string hexadecimal (ex. e8e2d3…), separados por vírgula. Apenas no painel — não é gravado na config xray do servidor, mas é incluído nos links de compartilhamento para que clientes possam fixar o certificado.",
+        "pinnedPeerCertSha256Placeholder": "hash(es) hexadecimal, separados por vírgula",
         "generateRandomPin": "Gerar hash aleatório",
         "getNewEchCert": "Obter novo certificado ECH",
         "show": "Mostrar",
@@ -559,7 +570,8 @@
         "getNewCert": "Obter novo certificado",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "Obter novo Seed"
+        "getNewSeed": "Obter novo Seed",
+        "listenHelp": "Você também pode informar um caminho de socket Unix (ex.: /run/xray/in.sock) para escutar em um socket em vez de uma porta TCP — nesse caso, defina a Porta como 0."
       },
       "info": {
         "mode": "Modo",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "Buscar email, comentário, sub ID, UUID, senha, auth…",
       "filterTitle": "Filtrar clientes",
       "clearAllFilters": "Limpar tudo",
+      "showingCount": "Mostrando {shown} de {total}",
       "sortOldest": "Mais antigos primeiro",
       "sortNewest": "Mais novos primeiro",
       "sortRecentlyUpdated": "Atualizados recentemente",
@@ -826,6 +839,12 @@
       "panelVersion": "Versão do painel",
       "actions": "Ações",
       "probe": "Sondar agora",
+      "updatePanel": "Atualizar painel",
+      "updateSelected": "Atualizar selecionados ({count})",
+      "updateAvailable": "Atualização disponível",
+      "upToDate": "Atualizado",
+      "updateConfirmTitle": "Atualizar {count} nó(s) para a versão mais recente?",
+      "updateConfirmContent": "Cada nó selecionado baixa a versão mais recente e reinicia nela. Apenas nós ativos e online são atualizados.",
       "testConnection": "Testar conexão",
       "connectionOk": "Conexão OK ({ms} ms)",
       "connectionFailed": "Falha na conexão",
@@ -847,8 +866,23 @@
         "deleted": "Nó excluído",
         "test": "Testar conexão",
         "fillRequired": "Nome, endereço, porta e token da API são obrigatórios",
-        "probeFailed": "Falha na sondagem"
-      }
+        "probeFailed": "Falha na sondagem",
+        "updateStarted": "Atualização do painel iniciada",
+        "updateResult": "Atualização iniciada em {ok} nó(s), {failed} falharam",
+        "updateNoneEligible": "Selecione pelo menos um nó online e ativo"
+      },
+      "tlsVerifyMode": "Verificação TLS",
+      "tlsVerifyModeHint": "Como o painel valida o certificado HTTPS do nó. Fixar ou Ignorar são para certificados autoassinados (apenas nós https).",
+      "tlsVerify": "Verificar (CA padrão)",
+      "tlsPin": "Fixar certificado (SHA-256)",
+      "tlsSkip": "Ignorar verificação",
+      "tlsSkipWarning": "Ignorar a verificação remove a proteção contra ataques man-in-the-middle — o token de API pode ser interceptado. Prefira fixar o certificado.",
+      "pinnedCert": "SHA-256 do certificado fixado",
+      "pinnedCertHint": "SHA-256 do certificado do nó em base64 ou hex. Use Obter para lê-lo do nó agora.",
+      "pinnedCertPlaceholder": "SHA-256 em base64 ou hex",
+      "fetchPin": "Obter",
+      "pinFetched": "Certificado atual do nó obtido",
+      "pinFetchFailed": "Não foi possível obter o certificado"
     },
     "settings": {
       "title": "Configurações do Painel",
@@ -1173,6 +1207,8 @@
         "tagRequired": "A tag é obrigatória",
         "tagPlaceholder": "tag-única",
         "localIpPlaceholder": "IP local",
+        "dialerProxyPlaceholder": "Selecione uma saída para encadear",
+        "dialerProxyHint": "Conecte esta saída através de outra saída (por tag) para criar uma cadeia de proxy. Deixe vazio para conectar diretamente.",
         "addressRequired": "Endereço é obrigatório",
         "portRequired": "Porta é obrigatória",
         "optional": "opcional",

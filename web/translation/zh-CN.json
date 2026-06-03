@@ -246,7 +246,10 @@
       "importDatabaseError": "导入数据库时出错",
       "readDatabaseError": "读取数据库时出错",
       "getDatabaseError": "检索数据库时出错",
-      "getConfigError": "检索配置文件时出错"
+      "getConfigError": "检索配置文件时出错",
+      "backupPostgresNote": "此面板运行在 PostgreSQL 上。「备份」会下载一个 pg_dump 归档（.dump），「恢复」会通过 pg_restore 重新载入。服务器需要安装 PostgreSQL 客户端工具（pg_dump 和 pg_restore）。",
+      "exportDatabasePgDesc": "点击将当前数据库的 PostgreSQL 转储（.dump）下载到您的设备。",
+      "importDatabasePgDesc": "点击选择并上传 .dump 文件以恢复您的 PostgreSQL 数据库。此操作将替换所有当前数据。"
     },
     "inbounds": {
       "title": "入站",
@@ -261,7 +264,7 @@
       "localPanel": "本地面板",
       "fallbacks": {
         "title": "Fallbacks",
-        "help": "当此入站的连接未匹配任何客户端时，将其路由到另一个入站。在下方选择一个子入站，路由字段（SNI / ALPN / Path / xver）会从子入站的传输方式中自动填充——大多数场景无需再调整。每个子入站应监听 127.0.0.1，security=none。",
+        "help": "当此入站的连接未匹配任何客户端时，将其路由到其他位置。在下方选择一个子入站，可从其传输方式自动填充路由字段（SNI / ALPN / Path / xver）；或将选择框留空并直接设置 Dest（例如 8080 或 127.0.0.1:8080），以路由到 Nginx 等外部服务器。每个子入站应监听 127.0.0.1，security=none。",
         "empty": "暂无回落",
         "add": "添加回落",
         "pickInbound": "选择一个入站",
@@ -317,6 +320,11 @@
       "attachClientsSearchPlaceholder": "搜索邮箱或备注",
       "attachClientsStatusDisabled": "已禁用",
       "attachClientsSelectedCount": "已选 {selected}/{total}",
+      "attachExistingClients": "附加现有客户端…",
+      "attachExistingTitle": "将现有客户端附加到 “{remark}”",
+      "attachExistingDesc": "将现有客户端(可用 {count} 个)附加到此入站 — 相同 UUID/密码和共享流量。已在此入站的客户端将被跳过。",
+      "attachExistingNoClients": "尚无客户端。请先创建客户端,然后在此附加。",
+      "attachExistingStatusAttached": "已附加",
       "detachClients": "分离客户端",
       "detachClientsTitle": "从 “{remark}” 分离客户端",
       "detachClientsDesc": "仅从此入站移除选中的客户端。客户端记录保留(使用 Delete 完全移除)。源共有 {count} 个客户端。",
@@ -439,7 +447,10 @@
         "trafficGetError": "获取流量数据时出错",
         "getNewX25519CertError": "获取X25519证书时出错。",
         "getNewmldsa65Error": "获取mldsa65证书时出错。",
-        "getNewVlessEncError": "获取VlessEnc证书时出错。"
+        "getNewVlessEncError": "获取VlessEnc证书时出错。",
+        "invalidClientField": "客户端 {client}：字段 {field} — {reason}",
+        "invalidField": "{field} — {reason}",
+        "moreIssues": "{message}  (另有 {count} 项)"
       },
       "form": {
         "moveUp": "上移",
@@ -544,8 +555,8 @@
         "echKey": "ECH key",
         "echConfig": "ECH 配置",
         "pinnedPeerCertSha256": "固定对端证书 SHA-256",
-        "pinnedPeerCertSha256Tip": "对端证书的 Base64 编码 SHA-256 哈希。仅面板使用 — 不写入服务器的 xray 配置，但会包含在分享链接中，以便客户端固定证书。",
-        "pinnedPeerCertSha256Placeholder": "base64 哈希，逗号分隔",
+        "pinnedPeerCertSha256Tip": "对端证书的 SHA-256 哈希（十六进制字符串，如 e8e2d3…），逗号分隔。仅面板使用 — 不写入服务器的 xray 配置，但会包含在分享链接中，以便客户端固定证书。",
+        "pinnedPeerCertSha256Placeholder": "十六进制哈希，逗号分隔",
         "generateRandomPin": "生成随机哈希",
         "getNewEchCert": "获取新 ECH 证书",
         "show": "显示",
@@ -559,7 +570,8 @@
         "getNewCert": "获取新证书",
         "mldsa65Seed": "mldsa65 Seed",
         "mldsa65Verify": "mldsa65 Verify",
-        "getNewSeed": "获取新 Seed"
+        "getNewSeed": "获取新 Seed",
+        "listenHelp": "也可以填写 Unix socket 路径（例如 /run/xray/in.sock），以使用套接字而非 TCP 端口监听——此时请将端口设为 0。"
       },
       "info": {
         "mode": "模式",
@@ -631,6 +643,7 @@
       "searchPlaceholder": "搜索邮箱、备注、sub ID、UUID、密码、auth…",
       "filterTitle": "筛选客户端",
       "clearAllFilters": "清除全部",
+      "showingCount": "显示 {shown} / {total}",
       "sortOldest": "最旧优先",
       "sortNewest": "最新优先",
       "sortRecentlyUpdated": "最近更新",
@@ -807,8 +820,8 @@
       "scheme": "协议",
       "address": "地址",
       "port": "端口",
-      "basePath": "Base Path",
-      "apiToken": "API Token",
+      "basePath": "基础路径",
+      "apiToken": "API 令牌",
       "apiTokenPlaceholder": "远程面板设置页中的令牌",
       "apiTokenHint": "远程面板在 设置 → API 令牌 中显示其 API 令牌。",
       "regenerate": "重新生成令牌",
@@ -826,6 +839,12 @@
       "panelVersion": "面板版本",
       "actions": "操作",
       "probe": "立即探测",
+      "updatePanel": "更新面板",
+      "updateSelected": "更新所选 ({count})",
+      "updateAvailable": "有可用更新",
+      "upToDate": "已是最新",
+      "updateConfirmTitle": "将 {count} 个节点更新到最新版本？",
+      "updateConfirmContent": "每个所选节点会下载最新版本并重启。仅更新已启用且在线的节点。",
       "testConnection": "测试连接",
       "connectionOk": "连接正常 ({ms} ms)",
       "connectionFailed": "连接失败",
@@ -847,8 +866,23 @@
         "deleted": "节点已删除",
         "test": "测试连接",
         "fillRequired": "名称、地址、端口和 API 令牌为必填项",
-        "probeFailed": "探测失败"
-      }
+        "probeFailed": "探测失败",
+        "updateStarted": "已开始更新面板",
+        "updateResult": "已在 {ok} 个节点上触发更新，{failed} 个失败",
+        "updateNoneEligible": "请至少选择一个在线且已启用的节点"
+      },
+      "tlsVerifyMode": "TLS 校验",
+      "tlsVerifyModeHint": "面板如何校验节点的 HTTPS 证书。固定或跳过用于自签名证书（仅 https 节点）。",
+      "tlsVerify": "校验（默认 CA）",
+      "tlsPin": "固定证书（SHA-256）",
+      "tlsSkip": "跳过校验",
+      "tlsSkipWarning": "跳过校验会失去对中间人攻击的防护，API 令牌可能被截获。建议改用固定证书。",
+      "pinnedCert": "固定证书的 SHA-256",
+      "pinnedCertHint": "节点证书的 SHA-256（base64 或 hex）。点击“获取”可立即从节点读取。",
+      "pinnedCertPlaceholder": "base64 或 hex 的 SHA-256",
+      "fetchPin": "获取",
+      "pinFetched": "已获取节点当前证书",
+      "pinFetchFailed": "无法获取证书"
     },
     "settings": {
       "title": "面板设置",
@@ -1173,6 +1207,8 @@
         "tagRequired": "标签为必填项",
         "tagPlaceholder": "唯一标签",
         "localIpPlaceholder": "本地 IP",
+        "dialerProxyPlaceholder": "选择要串联的出站",
+        "dialerProxyHint": "让此出站通过另一个出站（按标签）拨号，以建立代理链。留空则直接连接。",
         "addressRequired": "地址为必填项",
         "portRequired": "端口为必填项",
         "optional": "可选",
