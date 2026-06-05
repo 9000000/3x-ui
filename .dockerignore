@@ -25,7 +25,6 @@ x-ui.db
 db
 cert
 pgdata
-
 # Local env files
 .env
 .env.local
@@ -33,3 +32,6 @@ pgdata
 # Logs
 logs
 *.log
+
+# Database dumps
+*.dump
