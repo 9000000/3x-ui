@@ -61,6 +61,7 @@ export interface AllSetting {
   subRoutingRules: string;
   subShowInfo: boolean;
   subSupportUrl: string;
+  subThemeDir: string;
   subTitle: string;
   subURI: string;
   subUpdates: number;
@@ -79,6 +80,7 @@ export interface AllSetting {
   trustedProxyCIDRs: string;
   twoFactorEnable: boolean;
   twoFactorToken: string;
+  warpUpdateInterval: number;
   webBasePath: string;
   webCertFile: string;
   webDomain: string;
@@ -149,6 +151,7 @@ export interface AllSettingView {
   subRoutingRules: string;
   subShowInfo: boolean;
   subSupportUrl: string;
+  subThemeDir: string;
   subTitle: string;
   subURI: string;
   subUpdates: number;
@@ -167,6 +170,7 @@ export interface AllSettingView {
   trustedProxyCIDRs: string;
   twoFactorEnable: boolean;
   twoFactorToken: string;
+  warpUpdateInterval: number;
   webBasePath: string;
   webCertFile: string;
   webDomain: string;
@@ -371,6 +375,8 @@ export interface Node {
   transitive?: boolean;
   updatedAt: number;
   uptimeSecs: number;
+  xrayError: string;
+  xrayState: string;
   xrayVersion: string;
 }
 
@@ -390,6 +396,8 @@ export interface ProbeResultUI {
   panelVersion: string;
   status: string;
   uptimeSecs: number;
+  xrayError: string;
+  xrayState: string;
   xrayVersion: string;
 }
 

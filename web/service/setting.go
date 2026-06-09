@@ -86,8 +86,10 @@ var defaultValueMap = map[string]string{
 	"subJsonMux":                  "",
 	"subJsonRules":                "",
 	"subJsonFinalMask":            "",
+	"subThemeDir":                 "",
 	"datepicker":                  "gregorian",
 	"warp":                        "",
+	"warpUpdateInterval":          "0",
 	"nord":                        "",
 	"externalTrafficInformEnable": "false",
 	"externalTrafficInformURI":    "",
@@ -320,6 +322,22 @@ func (s *SettingService) getInt(key string) (int, error) {
 
 func (s *SettingService) setInt(key string, value int) error {
 	return s.setString(key, strconv.Itoa(value))
+}
+
+func (s *SettingService) GetWarpLastUpdate() (int64, error) {
+	val, err := s.getString("warpLastUpdate")
+	if err != nil || val == "" {
+		return 0, err
+	}
+	return strconv.ParseInt(val, 10, 64)
+}
+
+func (s *SettingService) SetWarpLastUpdate(val int64) error {
+	return s.saveSetting("warpLastUpdate", strconv.FormatInt(val, 10))
+}
+
+func (s *SettingService) SetWarpUpdateInterval(val int) error {
+	return s.setInt("warpUpdateInterval", val)
 }
 
 func (s *SettingService) GetXrayConfigTemplate() (string, error) {
@@ -699,6 +717,10 @@ func (s *SettingService) GetSubJsonFinalMask() (string, error) {
 	return s.getString("subJsonFinalMask")
 }
 
+func (s *SettingService) GetSubThemeDir() (string, error) {
+	return s.getString("subThemeDir")
+}
+
 func (s *SettingService) GetDatepicker() (string, error) {
 	return s.getString("datepicker")
 }
@@ -973,6 +995,7 @@ func (s *SettingService) GetDefaultSettings(host string) (any, error) {
 		"defaultCert":    func() (any, error) { return s.GetCertFile() },
 		"defaultKey":     func() (any, error) { return s.GetKeyFile() },
 		"tgBotEnable":    func() (any, error) { return s.GetTgbotEnabled() },
+		"subThemeDir":    func() (any, error) { return s.GetSubThemeDir() },
 		"subEnable":      func() (any, error) { return s.GetSubEnable() },
 		"subJsonEnable":  func() (any, error) { return s.GetSubJsonEnable() },
 		"subClashEnable": func() (any, error) { return s.GetSubClashEnable() },

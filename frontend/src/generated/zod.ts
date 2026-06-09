@@ -71,6 +71,7 @@ export const AllSettingSchema = z.object({
   subRoutingRules: z.string(),
   subShowInfo: z.boolean(),
   subSupportUrl: z.string(),
+  subThemeDir: z.string(),
   subTitle: z.string(),
   subURI: z.string(),
   subUpdates: z.number().int().min(0).max(525600),
@@ -89,6 +90,7 @@ export const AllSettingSchema = z.object({
   trustedProxyCIDRs: z.string(),
   twoFactorEnable: z.boolean(),
   twoFactorToken: z.string(),
+  warpUpdateInterval: z.number().int().min(0),
   webBasePath: z.string(),
   webCertFile: z.string(),
   webDomain: z.string(),
@@ -160,6 +162,7 @@ export const AllSettingViewSchema = z.object({
   subRoutingRules: z.string(),
   subShowInfo: z.boolean(),
   subSupportUrl: z.string(),
+  subThemeDir: z.string(),
   subTitle: z.string(),
   subURI: z.string(),
   subUpdates: z.number().int().min(0).max(525600),
@@ -178,6 +181,7 @@ export const AllSettingViewSchema = z.object({
   trustedProxyCIDRs: z.string(),
   twoFactorEnable: z.boolean(),
   twoFactorToken: z.string(),
+  warpUpdateInterval: z.number().int().min(0),
   webBasePath: z.string(),
   webCertFile: z.string(),
   webDomain: z.string(),
@@ -316,7 +320,7 @@ export const InboundSchema = z.object({
   nodeId: z.number().int().nullable().optional(),
   originNodeGuid: z.string().optional(),
   port: z.number().int().min(0).max(65535),
-  protocol: z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'wireguard', 'hysteria', 'http', 'mixed', 'tunnel', 'tun']),
+  protocol: z.enum(['vmess', 'vless', 'trojan', 'shadowsocks', 'wireguard', 'hysteria', 'http', 'mixed', 'tunnel', 'tun', 'mtproto']),
   remark: z.string(),
   settings: z.unknown(),
   sniffing: z.unknown(),
@@ -398,6 +402,8 @@ export const NodeSchema = z.object({
   transitive: z.boolean().optional(),
   updatedAt: z.number().int(),
   uptimeSecs: z.number().int(),
+  xrayError: z.string(),
+  xrayState: z.string(),
   xrayVersion: z.string(),
 });
 export type Node = z.infer<typeof NodeSchema>;
@@ -419,6 +425,8 @@ export const ProbeResultUISchema = z.object({
   panelVersion: z.string(),
   status: z.string(),
   uptimeSecs: z.number().int(),
+  xrayError: z.string(),
+  xrayState: z.string(),
   xrayVersion: z.string(),
 });
 export type ProbeResultUI = z.infer<typeof ProbeResultUISchema>;

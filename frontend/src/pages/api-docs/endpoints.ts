@@ -442,6 +442,21 @@ export const sections: readonly Section[] = [
         body: 'sni=example.com',
         response: '{\n  "success": true,\n  "obj": {\n    "echKeySet": "...",\n    "echServerKeys": [...],\n    "echConfigList": "..."\n  }\n}',
       },
+      {
+        method: 'GET',
+        path: '/panel/api/server/clientIps',
+        summary: 'Fetch the fully aggregated inbound_client_ips database table. Used by nodes to sync recently active IPs across the cluster.',
+        responseSchema: 'InboundClientIps',
+        responseSchemaArray: true,
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/server/clientIps',
+        summary: 'Submit a list of recently active IP timestamps. The panel merges them with the existing database to maintain a unified global IP-limit view.',
+        params: [
+          { name: 'ips', in: 'body (json)', type: 'object[]', desc: 'Array of InboundClientIps to merge.' },
+        ],
+      },
     ],
   },
 
@@ -1084,6 +1099,74 @@ export const sections: readonly Section[] = [
           { name: 'mode', in: 'body (form)', type: 'string', desc: '"tcp" for a fast dial-only probe (parallel-safe). Default/empty uses a full HTTP probe through a temp xray instance.' },
         ],
         body: 'outbound={"protocol":"freedom","settings":{}}&mode=tcp',
+      },
+      {
+        method: 'GET',
+        path: '/panel/api/xray/outbound-subs',
+        summary: 'List all outbound subscriptions (remote URLs that supply additional outbounds), newest first.',
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/xray/outbound-subs',
+        summary: 'Create an outbound subscription. The URL is fetched, parsed into outbounds with stable tags, and merged additively into the running Xray config.',
+        params: [
+          { name: 'remark', in: 'body (form)', type: 'string', desc: 'Optional display label.' },
+          { name: 'url', in: 'body (form)', type: 'string', desc: 'Subscription URL (required). Must be a public http(s) address; private/internal targets are blocked unless allowPrivate is true.' },
+          { name: 'tagPrefix', in: 'body (form)', type: 'string', desc: 'Prefix for generated outbound tags. Defaults to "sub<id>-".' },
+          { name: 'updateInterval', in: 'body (form)', type: 'integer', desc: 'Seconds between auto-refreshes. Default 600.' },
+          { name: 'enabled', in: 'body (form)', type: 'boolean', desc: 'Whether the subscription is active. Default true.' },
+          { name: 'allowPrivate', in: 'body (form)', type: 'boolean', desc: 'Allow the URL to point at a private/internal/loopback address (localhost/LAN). Default false (SSRF guard blocks private targets).' },
+          { name: 'prepend', in: 'body (form)', type: 'boolean', desc: 'Place this subscription\'s outbounds before the manual template outbounds (so one can become the default). Default false.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/xray/outbound-subs/:id',
+        summary: 'Update an existing outbound subscription by id. Accepts the same form fields as create.',
+        params: [
+          { name: 'id', in: 'path', type: 'integer', desc: 'Subscription id.' },
+        ],
+      },
+      {
+        method: 'DELETE',
+        path: '/panel/api/xray/outbound-subs/:id',
+        summary: 'Delete an outbound subscription by id.',
+        params: [
+          { name: 'id', in: 'path', type: 'integer', desc: 'Subscription id.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/xray/outbound-subs/:id/del',
+        summary: 'Delete an outbound subscription by id (POST alias of DELETE for axios-friendly clients).',
+        params: [
+          { name: 'id', in: 'path', type: 'integer', desc: 'Subscription id.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/xray/outbound-subs/:id/refresh',
+        summary: 'Force an immediate re-fetch of the subscription and return the parsed outbounds. Signals Xray to reload.',
+        params: [
+          { name: 'id', in: 'path', type: 'integer', desc: 'Subscription id.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/xray/outbound-subs/:id/move',
+        summary: 'Reorder a subscription one step up or down in priority (controls its position in the merged outbounds).',
+        params: [
+          { name: 'id', in: 'path', type: 'integer', desc: 'Subscription id.' },
+          { name: 'dir', in: 'body (form)', type: 'string', desc: '"up" to raise priority, anything else to lower it.' },
+        ],
+      },
+      {
+        method: 'POST',
+        path: '/panel/api/xray/outbound-subs/parse',
+        summary: 'Preview a subscription URL: fetch and parse it into outbounds without persisting anything.',
+        params: [
+          { name: 'url', in: 'body (form)', type: 'string', desc: 'Subscription URL to preview (required).' },
+        ],
       },
     ],
   },

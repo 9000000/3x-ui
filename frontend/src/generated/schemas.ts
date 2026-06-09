@@ -217,6 +217,10 @@ export const SCHEMAS: Record<string, unknown> = {
         "description": "Subscription support URL",
         "type": "string"
       },
+      "subThemeDir": {
+        "description": "Absolute path to a folder containing a custom subscription page template",
+        "type": "string"
+      },
       "subTitle": {
         "description": "Subscription title",
         "type": "string"
@@ -294,6 +298,11 @@ export const SCHEMAS: Record<string, unknown> = {
       "twoFactorToken": {
         "description": "Two-factor authentication token",
         "type": "string"
+      },
+      "warpUpdateInterval": {
+        "description": "WARP",
+        "minimum": 0,
+        "type": "integer"
       },
       "webBasePath": {
         "description": "Base path for web panel URLs",
@@ -378,6 +387,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "subRoutingRules",
       "subShowInfo",
       "subSupportUrl",
+      "subThemeDir",
       "subTitle",
       "subURI",
       "subUpdates",
@@ -396,6 +406,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "trustedProxyCIDRs",
       "twoFactorEnable",
       "twoFactorToken",
+      "warpUpdateInterval",
       "webBasePath",
       "webCertFile",
       "webDomain",
@@ -640,6 +651,10 @@ export const SCHEMAS: Record<string, unknown> = {
         "description": "Subscription support URL",
         "type": "string"
       },
+      "subThemeDir": {
+        "description": "Absolute path to a folder containing a custom subscription page template",
+        "type": "string"
+      },
       "subTitle": {
         "description": "Subscription title",
         "type": "string"
@@ -717,6 +732,11 @@ export const SCHEMAS: Record<string, unknown> = {
       "twoFactorToken": {
         "description": "Two-factor authentication token",
         "type": "string"
+      },
+      "warpUpdateInterval": {
+        "description": "WARP",
+        "minimum": 0,
+        "type": "integer"
       },
       "webBasePath": {
         "description": "Base path for web panel URLs",
@@ -807,6 +827,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "subRoutingRules",
       "subShowInfo",
       "subSupportUrl",
+      "subThemeDir",
       "subTitle",
       "subURI",
       "subUpdates",
@@ -825,6 +846,7 @@ export const SCHEMAS: Record<string, unknown> = {
       "trustedProxyCIDRs",
       "twoFactorEnable",
       "twoFactorToken",
+      "warpUpdateInterval",
       "webBasePath",
       "webCertFile",
       "webDomain",
@@ -1315,7 +1337,8 @@ export const SCHEMAS: Record<string, unknown> = {
           "http",
           "mixed",
           "tunnel",
-          "tun"
+          "tun",
+          "mtproto"
         ],
         "example": "vless",
         "type": "string"
@@ -1629,6 +1652,13 @@ export const SCHEMAS: Record<string, unknown> = {
         "example": 86400,
         "type": "integer"
       },
+      "xrayError": {
+        "type": "string"
+      },
+      "xrayState": {
+        "description": "XrayState and XrayError are captured from the remote node's /panel/api/server/status\nduring heartbeats. They let the central panel distinguish \"panel API reachable\"\n(status=online) from \"Xray core itself has failed on the node\" for monitoring.",
+        "type": "string"
+      },
       "xrayVersion": {
         "example": "25.10.31",
         "type": "string"
@@ -1664,6 +1694,8 @@ export const SCHEMAS: Record<string, unknown> = {
       "tlsVerifyMode",
       "updatedAt",
       "uptimeSecs",
+      "xrayError",
+      "xrayState",
       "xrayVersion"
     ],
     "type": "object"
@@ -1725,6 +1757,13 @@ export const SCHEMAS: Record<string, unknown> = {
         "example": 86400,
         "type": "integer"
       },
+      "xrayError": {
+        "type": "string"
+      },
+      "xrayState": {
+        "description": "XrayState/XrayError are populated on successful probes even when the node's\nXray core is not healthy. The UI uses them for a distinct \"panel ok, xray failed\" indicator.",
+        "type": "string"
+      },
       "xrayVersion": {
         "example": "25.10.31",
         "type": "string"
@@ -1738,6 +1777,8 @@ export const SCHEMAS: Record<string, unknown> = {
       "panelVersion",
       "status",
       "uptimeSecs",
+      "xrayError",
+      "xrayState",
       "xrayVersion"
     ],
     "type": "object"

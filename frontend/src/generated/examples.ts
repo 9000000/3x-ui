@@ -56,6 +56,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "subRoutingRules": "",
     "subShowInfo": false,
     "subSupportUrl": "",
+    "subThemeDir": "",
     "subTitle": "",
     "subURI": "",
     "subUpdates": 0,
@@ -74,6 +75,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "trustedProxyCIDRs": "",
     "twoFactorEnable": false,
     "twoFactorToken": "",
+    "warpUpdateInterval": 0,
     "webBasePath": "",
     "webCertFile": "",
     "webDomain": "",
@@ -143,6 +145,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "subRoutingRules": "",
     "subShowInfo": false,
     "subSupportUrl": "",
+    "subThemeDir": "",
     "subTitle": "",
     "subURI": "",
     "subUpdates": 0,
@@ -161,6 +164,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "trustedProxyCIDRs": "",
     "twoFactorEnable": false,
     "twoFactorToken": "",
+    "warpUpdateInterval": 0,
     "webBasePath": "",
     "webCertFile": "",
     "webDomain": "",
@@ -364,6 +368,8 @@ export const EXAMPLES: Record<string, unknown> = {
     "transitive": false,
     "updatedAt": 1700000000,
     "uptimeSecs": 86400,
+    "xrayError": "",
+    "xrayState": "",
     "xrayVersion": "25.10.31"
   },
   "OutboundTraffics": {
@@ -381,6 +387,8 @@ export const EXAMPLES: Record<string, unknown> = {
     "panelVersion": "v3.x.x",
     "status": "online",
     "uptimeSecs": 86400,
+    "xrayError": "",
+    "xrayState": "",
     "xrayVersion": "25.10.31"
   },
   "Setting": {

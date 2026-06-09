@@ -243,6 +243,10 @@
             "description": "Subscription support URL",
             "type": "string"
           },
+          "subThemeDir": {
+            "description": "Absolute path to a folder containing a custom subscription page template",
+            "type": "string"
+          },
           "subTitle": {
             "description": "Subscription title",
             "type": "string"
@@ -320,6 +324,11 @@
           "twoFactorToken": {
             "description": "Two-factor authentication token",
             "type": "string"
+          },
+          "warpUpdateInterval": {
+            "description": "WARP",
+            "minimum": 0,
+            "type": "integer"
           },
           "webBasePath": {
             "description": "Base path for web panel URLs",
@@ -404,6 +413,7 @@
           "subRoutingRules",
           "subShowInfo",
           "subSupportUrl",
+          "subThemeDir",
           "subTitle",
           "subURI",
           "subUpdates",
@@ -422,6 +432,7 @@
           "trustedProxyCIDRs",
           "twoFactorEnable",
           "twoFactorToken",
+          "warpUpdateInterval",
           "webBasePath",
           "webCertFile",
           "webDomain",
@@ -666,6 +677,10 @@
             "description": "Subscription support URL",
             "type": "string"
           },
+          "subThemeDir": {
+            "description": "Absolute path to a folder containing a custom subscription page template",
+            "type": "string"
+          },
           "subTitle": {
             "description": "Subscription title",
             "type": "string"
@@ -743,6 +758,11 @@
           "twoFactorToken": {
             "description": "Two-factor authentication token",
             "type": "string"
+          },
+          "warpUpdateInterval": {
+            "description": "WARP",
+            "minimum": 0,
+            "type": "integer"
           },
           "webBasePath": {
             "description": "Base path for web panel URLs",
@@ -833,6 +853,7 @@
           "subRoutingRules",
           "subShowInfo",
           "subSupportUrl",
+          "subThemeDir",
           "subTitle",
           "subURI",
           "subUpdates",
@@ -851,6 +872,7 @@
           "trustedProxyCIDRs",
           "twoFactorEnable",
           "twoFactorToken",
+          "warpUpdateInterval",
           "webBasePath",
           "webCertFile",
           "webDomain",
@@ -1341,7 +1363,8 @@
               "http",
               "mixed",
               "tunnel",
-              "tun"
+              "tun",
+              "mtproto"
             ],
             "example": "vless",
             "type": "string"
@@ -1655,6 +1678,13 @@
             "example": 86400,
             "type": "integer"
           },
+          "xrayError": {
+            "type": "string"
+          },
+          "xrayState": {
+            "description": "XrayState and XrayError are captured from the remote node's /panel/api/server/status\nduring heartbeats. They let the central panel distinguish \"panel API reachable\"\n(status=online) from \"Xray core itself has failed on the node\" for monitoring.",
+            "type": "string"
+          },
           "xrayVersion": {
             "example": "25.10.31",
             "type": "string"
@@ -1690,6 +1720,8 @@
           "tlsVerifyMode",
           "updatedAt",
           "uptimeSecs",
+          "xrayError",
+          "xrayState",
           "xrayVersion"
         ],
         "type": "object"
@@ -1751,6 +1783,13 @@
             "example": 86400,
             "type": "integer"
           },
+          "xrayError": {
+            "type": "string"
+          },
+          "xrayState": {
+            "description": "XrayState/XrayError are populated on successful probes even when the node's\nXray core is not healthy. The UI uses them for a distinct \"panel ok, xray failed\" indicator.",
+            "type": "string"
+          },
           "xrayVersion": {
             "example": "25.10.31",
             "type": "string"
@@ -1764,6 +1803,8 @@
           "panelVersion",
           "status",
           "uptimeSecs",
+          "xrayError",
+          "xrayState",
           "xrayVersion"
         ],
         "type": "object"
@@ -4031,6 +4072,79 @@
         }
       }
     },
+    "/panel/api/server/clientIps": {
+      "get": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "Fetch the fully aggregated inbound_client_ips database table. Used by nodes to sync recently active IPs across the cluster.",
+        "operationId": "get_panel_api_server_clientIps",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/InboundClientIps"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": [
+                    {
+                      "clientEmail": "",
+                      "id": 0,
+                      "ips": null
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Server"
+        ],
+        "summary": "Submit a list of recently active IP timestamps. The panel merges them with the existing database to maintain a unified global IP-limit view.",
+        "operationId": "post_panel_api_server_clientIps",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/panel/api/clients/list": {
       "get": {
         "tags": [
@@ -5893,6 +6007,8 @@
                       "transitive": false,
                       "updatedAt": 1700000000,
                       "uptimeSecs": 86400,
+                      "xrayError": "",
+                      "xrayState": "",
                       "xrayVersion": "25.10.31"
                     }
                   ]
@@ -6253,6 +6369,8 @@
                     "panelVersion": "v3.x.x",
                     "status": "online",
                     "uptimeSecs": 86400,
+                    "xrayError": "",
+                    "xrayState": "",
                     "xrayVersion": "25.10.31"
                   }
                 }
@@ -7528,6 +7646,297 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/xray/outbound-subs": {
+      "get": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "List all outbound subscriptions (remote URLs that supply additional outbounds), newest first.",
+        "operationId": "get_panel_api_xray_outbound_subs",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Create an outbound subscription. The URL is fetched, parsed into outbounds with stable tags, and merged additively into the running Xray config.",
+        "operationId": "post_panel_api_xray_outbound_subs",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/xray/outbound-subs/{id}": {
+      "post": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Update an existing outbound subscription by id. Accepts the same form fields as create.",
+        "operationId": "post_panel_api_xray_outbound_subs_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription id.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Delete an outbound subscription by id.",
+        "operationId": "delete_panel_api_xray_outbound_subs_id",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription id.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/xray/outbound-subs/{id}/del": {
+      "post": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Delete an outbound subscription by id (POST alias of DELETE for axios-friendly clients).",
+        "operationId": "post_panel_api_xray_outbound_subs_id_del",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription id.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/xray/outbound-subs/{id}/refresh": {
+      "post": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Force an immediate re-fetch of the subscription and return the parsed outbounds. Signals Xray to reload.",
+        "operationId": "post_panel_api_xray_outbound_subs_id_refresh",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription id.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/xray/outbound-subs/{id}/move": {
+      "post": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Reorder a subscription one step up or down in priority (controls its position in the merged outbounds).",
+        "operationId": "post_panel_api_xray_outbound_subs_id_move",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Subscription id.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/xray/outbound-subs/parse": {
+      "post": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Preview a subscription URL: fetch and parse it into outbounds without persisting anything.",
+        "operationId": "post_panel_api_xray_outbound_subs_parse",
         "responses": {
           "200": {
             "description": "Successful response",
