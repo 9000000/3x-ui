@@ -23,6 +23,15 @@ type Instance struct {
 	Listen string
 	Port   int
 	Secret string
+
+	// Optional mtg tuning; each is omitted from the generated TOML when
+	// zero-valued so mtg falls back to its own defaults.
+	Debug                 bool
+	ProxyProtocolListener bool
+	PreferIP              string
+	FrontingIP            string
+	FrontingPort          int
+	FrontingProxyProtocol bool
 }
 
 func (inst Instance) bindTo() string {
@@ -33,8 +42,19 @@ func (inst Instance) bindTo() string {
 	return fmt.Sprintf("%s:%d", listen, inst.Port)
 }
 
+// fingerprint changes whenever any value that ends up in the generated TOML
+// changes, so ensureLocked restarts mtg when the operator edits a setting.
 func (inst Instance) fingerprint() string {
-	return fmt.Sprintf("%s|%s", inst.bindTo(), inst.Secret)
+	return strings.Join([]string{
+		inst.bindTo(),
+		inst.Secret,
+		strconv.FormatBool(inst.Debug),
+		strconv.FormatBool(inst.ProxyProtocolListener),
+		inst.PreferIP,
+		inst.FrontingIP,
+		strconv.Itoa(inst.FrontingPort),
+		strconv.FormatBool(inst.FrontingProxyProtocol),
+	}, "|")
 }
 
 // Traffic is a per-inbound traffic delta scraped from an mtg metrics endpoint.
@@ -58,6 +78,9 @@ type managed struct {
 type Manager struct {
 	mu    sync.Mutex
 	procs map[int]*managed
+	// swept records that the one-time startup cleanup of orphaned mtg
+	// processes (survivors of a previous x-ui run) has already run.
+	swept bool
 }
 
 var (
@@ -85,7 +108,15 @@ func InstanceFromInbound(ib *model.Inbound) (Instance, bool) {
 		settings = healed
 	}
 	var parsed struct {
-		Secret string `json:"secret"`
+		Secret                string `json:"secret"`
+		Debug                 bool   `json:"debug"`
+		ProxyProtocolListener bool   `json:"proxyProtocolListener"`
+		PreferIP              string `json:"preferIp"`
+		DomainFronting        struct {
+			IP            string `json:"ip"`
+			Port          int    `json:"port"`
+			ProxyProtocol bool   `json:"proxyProtocol"`
+		} `json:"domainFronting"`
 	}
 	if err := json.Unmarshal([]byte(settings), &parsed); err != nil {
 		return Instance{}, false
@@ -94,11 +125,17 @@ func InstanceFromInbound(ib *model.Inbound) (Instance, bool) {
 		return Instance{}, false
 	}
 	return Instance{
-		Id:     ib.Id,
-		Tag:    ib.Tag,
-		Listen: ib.Listen,
-		Port:   ib.Port,
-		Secret: parsed.Secret,
+		Id:                    ib.Id,
+		Tag:                   ib.Tag,
+		Listen:                ib.Listen,
+		Port:                  ib.Port,
+		Secret:                parsed.Secret,
+		Debug:                 parsed.Debug,
+		ProxyProtocolListener: parsed.ProxyProtocolListener,
+		PreferIP:              parsed.PreferIP,
+		FrontingIP:            parsed.DomainFronting.IP,
+		FrontingPort:          parsed.DomainFronting.Port,
+		FrontingProxyProtocol: parsed.DomainFronting.ProxyProtocol,
 	}, true
 }
 
@@ -107,7 +144,22 @@ func InstanceFromInbound(ib *model.Inbound) (Instance, bool) {
 func (m *Manager) Ensure(inst Instance) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.sweepOrphansLocked()
 	return m.ensureLocked(inst)
+}
+
+// sweepOrphansLocked kills mtg processes left running by a previous x-ui run,
+// exactly once per process lifetime and before any of our own mtg are started.
+// Because x-ui owns every mtg process, anything alive at this point is an orphan
+// that would otherwise keep holding an inbound port with a stale secret.
+func (m *Manager) sweepOrphansLocked() {
+	if m.swept {
+		return
+	}
+	m.swept = true
+	if n := killStrayMtgProcesses(GetBinaryPath()); n > 0 {
+		logger.Warningf("mtproto: terminated %d orphaned mtg process(es) from a previous run", n)
+	}
 }
 
 func (m *Manager) ensureLocked(inst Instance) error {
@@ -125,10 +177,10 @@ func (m *Manager) ensureLocked(inst Instance) error {
 		return err
 	}
 	cfgPath := configPathForID(inst.Id)
-	if err := writeConfig(cfgPath, inst.Secret, inst.bindTo(), metricsPort); err != nil {
+	if err := writeConfig(cfgPath, inst, metricsPort); err != nil {
 		return err
 	}
-	proc := newProcess(cfgPath)
+	proc := newProcess(cfgPath, fmt.Sprintf("inbound %d", inst.Id))
 	if err := proc.Start(); err != nil {
 		return err
 	}
@@ -138,7 +190,7 @@ func (m *Manager) ensureLocked(inst Instance) error {
 		fingerprint: fp,
 		metricsPort: metricsPort,
 	}
-	logger.Info("mtproto: started mtg for inbound", inst.Id, "on", inst.bindTo())
+	logger.Infof("mtproto: started mtg for inbound %d on %s", inst.Id, inst.bindTo())
 	return nil
 }
 
@@ -150,7 +202,7 @@ func (m *Manager) Remove(id int) {
 		cur.proc.Stop()
 		delete(m.procs, id)
 		_ = os.Remove(configPathForID(id))
-		logger.Info("mtproto: stopped mtg for inbound", id)
+		logger.Infof("mtproto: stopped mtg for inbound %d", id)
 	}
 }
 
@@ -160,6 +212,7 @@ func (m *Manager) Remove(id int) {
 func (m *Manager) Reconcile(desired []Instance) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.sweepOrphansLocked()
 	want := make(map[int]struct{}, len(desired))
 	for _, inst := range desired {
 		want[inst.Id] = struct{}{}
@@ -173,7 +226,7 @@ func (m *Manager) Reconcile(desired []Instance) {
 	}
 	for _, inst := range desired {
 		if err := m.ensureLocked(inst); err != nil {
-			logger.Warning("mtproto: reconcile failed for inbound", inst.Id, ":", err)
+			logger.Warningf("mtproto: reconcile failed for inbound %d: %v", inst.Id, err)
 		}
 	}
 }
@@ -263,13 +316,44 @@ func freeLocalPort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-func writeConfig(path, secret, bindTo string, metricsPort int) error {
+// renderConfig builds the mtg TOML for an instance. Top-level keys must precede
+// any [section] header in TOML, so the layout is: required keys, then the
+// optional scalar tuning, then [domain-fronting], and finally [stats.prometheus]
+// — which x-ui always emits and scrapes for traffic (see scrapeTraffic).
+func renderConfig(inst Instance, metricsPort int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "secret = %q\n", inst.Secret)
+	fmt.Fprintf(&b, "bind-to = %q\n", inst.bindTo())
+	if inst.Debug {
+		b.WriteString("debug = true\n")
+	}
+	if inst.ProxyProtocolListener {
+		b.WriteString("proxy-protocol-listener = true\n")
+	}
+	if inst.PreferIP != "" {
+		fmt.Fprintf(&b, "prefer-ip = %q\n", inst.PreferIP)
+	}
+	if inst.FrontingIP != "" || inst.FrontingPort > 0 || inst.FrontingProxyProtocol {
+		b.WriteString("\n[domain-fronting]\n")
+		if inst.FrontingIP != "" {
+			fmt.Fprintf(&b, "ip = %q\n", inst.FrontingIP)
+		}
+		if inst.FrontingPort > 0 {
+			fmt.Fprintf(&b, "port = %d\n", inst.FrontingPort)
+		}
+		if inst.FrontingProxyProtocol {
+			b.WriteString("proxy-protocol = true\n")
+		}
+	}
+	fmt.Fprintf(&b, "\n[stats.prometheus]\nenabled = true\nbind-to = \"127.0.0.1:%d\"\nhttp-path = \"/metrics\"\nmetric-prefix = \"mtg\"\n", metricsPort)
+	return b.String()
+}
+
+func writeConfig(path string, inst Instance, metricsPort int) error {
 	if err := os.MkdirAll(configDir(), 0o750); err != nil {
 		return err
 	}
-	content := fmt.Sprintf("secret = %q\nbind-to = %q\n\n[stats.prometheus]\nenabled = true\nbind-to = \"127.0.0.1:%d\"\nhttp-path = \"/metrics\"\nmetric-prefix = \"mtg\"\n",
-		secret, bindTo, metricsPort)
-	return os.WriteFile(path, []byte(content), 0o640)
+	return os.WriteFile(path, []byte(renderConfig(inst, metricsPort)), 0o640)
 }
 
 // scrapeTraffic reads the mtg Prometheus metrics endpoint and sums byte
