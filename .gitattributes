@@ -1,6 +1,10 @@
+# Normalize line endings for all text files
+* text=auto
+
+# Force LF for shell scripts (critical for Docker builds on Windows)
 *.sh text eol=lf
-DockerInit.sh text eol=lf
-DockerEntrypoint.sh text eol=lf
+
+# Force LF for generated frontend files (consistent snapshots/diffs)
 frontend/src/generated/** text eol=lf
 frontend/public/openapi.json text eol=lf
 frontend/src/test/__snapshots__/** text eol=lf

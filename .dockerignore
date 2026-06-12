@@ -1,10 +1,99 @@
+# ==========================
+# Git
+# ==========================
 .git
+.github
+.gitignore
+.gitattributes
+
+# ==========================
+# IDE / Editor
+# ==========================
+.vscode
+.idea
+.cursor
+.claude
+.cache
+.antigravitycli
+*.swp
+*.swo
+*~
+
+# ==========================
+# Documentation & Media
+# ==========================
+*.md
+!frontend/README.md
+docs
+media
+LICENSE
+
+# ==========================
+# Node (handled in build stage)
+# ==========================
 **/node_modules
-internal/web/dist
+frontend/dist
+
+# ==========================
+# Go build artifacts
+# ==========================
 build
+bin
+release
+x-ui
+main
+*.exe
+
+# ==========================
+# Docker
+# ==========================
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+.dockerignore
+
+# ==========================
+# Runtime / Data
+# ==========================
+internal/web/dist
 db
 cert
 pgdata
-x-ui/
 *.db
+*.db-shm
+*.db-wal
 *.dump
+system_metrics.gob
+
+# ==========================
+# Logs & Temp
+# ==========================
+*.log
+log.txt
+logs
+tmp
+*.tar.gz
+
+# ==========================
+# OS files
+# ==========================
+.DS_Store
+Thumbs.db
+
+# ==========================
+# Env
+# ==========================
+.env
+.env.*
+!.env.example
+
+# ==========================
+# Misc not needed in build
+# ==========================
+.nvmrc
+.sync*
+x-ui.service.*
+x-ui.rc
+windows_files
+tools
+backup
