@@ -1,37 +1,10 @@
-# Git
 .git
-.github
-.gitignore
-.gitattributes
-
-# IDEs and Editors
-.vscode
-.idea
-*.swp
-*.swo
-
-# Node modules & Build outputs
 **/node_modules
-web/dist
-
-# Go build artifacts
-build/
+internal/web/dist
 build
-x-ui
-x-ui.db
-*.db
-
-# Cert & DB dirs
 db
 cert
 pgdata
-# Local env files
-.env
-.env.local
-
-# Logs
-logs
-*.log
-
-# Database dumps
+x-ui/
+*.db
 *.dump

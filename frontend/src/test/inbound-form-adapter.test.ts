@@ -7,6 +7,7 @@ import {
   type RawInboundRow,
 } from '@/lib/xray/inbound-form-adapter';
 import { InboundFormSchema } from '@/schemas/forms/inbound-form';
+import { SockoptStreamSettingsSchema } from '@/schemas/protocols/stream/sockopt';
 
 // Round-trip: raw DB row → InboundFormValues → wire payload, asserting
 // that the JSON-stringified settings/streamSettings/sniffing in the
@@ -103,6 +104,8 @@ describe('rawInboundToFormValues', () => {
       if (name === 'empty stream settings drop to undefined') {
         expect(values.streamSettings).toBeUndefined();
       }
+      expect(values.shareAddrStrategy).toBe('node');
+      expect(values.shareAddr).toBe('');
     });
   }
 
@@ -110,6 +113,55 @@ describe('rawInboundToFormValues', () => {
     const values = rawInboundToFormValues(vlessRow);
     const result = InboundFormSchema.safeParse(values);
     expect(result.success).toBe(true);
+  });
+});
+
+// Regression: wireguard (UDP-only) and tunnel (dokodemo-door) have no
+// user-selectable transport, so the modal submits streamSettings WITHOUT a
+// `network` key — just `security`, plus `sockopt` for tunnel's TProxy. The
+// network schema must accept that transportless shape; before the transportless
+// union branch landed it failed with "Invalid discriminator value. Expected
+// 'tcp' | ..." and blocked every wireguard/tunnel save.
+describe('transportless streamSettings (wireguard / tunnel)', () => {
+  it('accepts wireguard with a network-less streamSettings', () => {
+    const result = InboundFormSchema.safeParse({
+      port: 51820,
+      protocol: 'wireguard',
+      settings: { secretKey: 'cE9mYWtlLXNlY3JldC1rZXktZm9yLXVuaXQtdGVzdA==', peers: [] },
+      streamSettings: { security: 'none' },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('accepts tunnel with sockopt.tproxy and no network', () => {
+    const result = InboundFormSchema.safeParse({
+      port: 12345,
+      protocol: 'tunnel',
+      settings: { allowedNetwork: 'tcp,udp', followRedirect: true, portMap: {} },
+      streamSettings: {
+        security: 'none',
+        sockopt: SockoptStreamSettingsSchema.parse({ tproxy: 'tproxy' }),
+      },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      const stream = result.data.streamSettings as {
+        network?: unknown;
+        sockopt?: { tproxy?: string };
+      };
+      expect(stream.network).toBeUndefined();
+      expect(stream.sockopt?.tproxy).toBe('tproxy');
+    }
+  });
+
+  it('still rejects a present-but-invalid network value', () => {
+    const result = InboundFormSchema.safeParse({
+      port: 12345,
+      protocol: 'tunnel',
+      settings: { allowedNetwork: 'tcp,udp', followRedirect: true, portMap: {} },
+      streamSettings: { network: 'bogus', security: 'none' },
+    });
+    expect(result.success).toBe(false);
   });
 });
 
@@ -163,6 +215,17 @@ describe('formValuesToWirePayload', () => {
     const values = rawInboundToFormValues({ ...vlessRow, nodeId: 42 });
     const payload = formValuesToWirePayload(values);
     expect(payload.nodeId).toBe(42);
+  });
+
+  it('round-trips share address strategy fields', () => {
+    const values = rawInboundToFormValues({
+      ...vlessRow,
+      shareAddrStrategy: 'custom',
+      shareAddr: 'edge.example.test',
+    });
+    const payload = formValuesToWirePayload(values);
+    expect(payload.shareAddrStrategy).toBe('custom');
+    expect(payload.shareAddr).toBe('edge.example.test');
   });
 
   it('round-trips top-level fields through raw → values → payload → values', () => {
