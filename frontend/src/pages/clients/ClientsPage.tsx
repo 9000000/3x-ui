@@ -51,8 +51,9 @@ import { formatInboundLabel } from '@/lib/inbounds/label';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useClients } from '@/hooks/useClients';
+import { useNodesQuery } from '@/api/queries/useNodesQuery';
 import { useDatepicker } from '@/hooks/useDatepicker';
-import type { ClientRecord, InboundOption } from '@/hooks/useClients';
+import type { ClientRecord, InboundOption, ExternalLink, ExternalLinkInput } from '@/hooks/useClients';
 import ClientTrafficCell from '@/components/clients/ClientTrafficCell';
 import AppSidebar from '@/layouts/AppSidebar';
 import { IntlUtil, SizeFormatter } from '@/utils';
@@ -148,6 +149,7 @@ function readFilterState(): PersistedFilterState {
         buckets: Array.isArray(fromRaw.buckets) ? fromRaw.buckets : [],
         protocols: Array.isArray(fromRaw.protocols) ? fromRaw.protocols : [],
         inboundIds: Array.isArray(fromRaw.inboundIds) ? fromRaw.inboundIds : [],
+        nodeIds: Array.isArray(fromRaw.nodeIds) ? fromRaw.nodeIds : [],
         groups: Array.isArray(fromRaw.groups) ? fromRaw.groups : [],
       },
       sort: typeof raw.sort === 'string' ? raw.sort : '',
@@ -163,15 +165,15 @@ function gbToBytes(gb: number | undefined): number {
 }
 
 const SORT_OPTIONS: { value: string; column: string; order: 'ascend' | 'descend'; labelKey: string }[] = [
-  { value: 'createdAt:ascend',    column: 'createdAt',  order: 'ascend',   labelKey: 'pages.clients.sortOldest' },
-  { value: 'createdAt:descend',   column: 'createdAt',  order: 'descend',  labelKey: 'pages.clients.sortNewest' },
-  { value: 'updatedAt:descend',   column: 'updatedAt',  order: 'descend',  labelKey: 'pages.clients.sortRecentlyUpdated' },
-  { value: 'lastOnline:descend',  column: 'lastOnline', order: 'descend',  labelKey: 'pages.clients.sortRecentlyOnline' },
-  { value: 'email:ascend',        column: 'email',      order: 'ascend',   labelKey: 'pages.clients.sortEmailAZ' },
-  { value: 'email:descend',       column: 'email',      order: 'descend',  labelKey: 'pages.clients.sortEmailZA' },
-  { value: 'traffic:descend',     column: 'traffic',    order: 'descend',  labelKey: 'pages.clients.sortMostTraffic' },
-  { value: 'remaining:descend',   column: 'remaining',  order: 'descend',  labelKey: 'pages.clients.sortHighestRemaining' },
-  { value: 'expiryTime:ascend',   column: 'expiryTime', order: 'ascend',   labelKey: 'pages.clients.sortExpiringSoonest' },
+  { value: 'createdAt:ascend', column: 'createdAt', order: 'ascend', labelKey: 'pages.clients.sortOldest' },
+  { value: 'createdAt:descend', column: 'createdAt', order: 'descend', labelKey: 'pages.clients.sortNewest' },
+  { value: 'updatedAt:descend', column: 'updatedAt', order: 'descend', labelKey: 'pages.clients.sortRecentlyUpdated' },
+  { value: 'lastOnline:descend', column: 'lastOnline', order: 'descend', labelKey: 'pages.clients.sortRecentlyOnline' },
+  { value: 'email:ascend', column: 'email', order: 'ascend', labelKey: 'pages.clients.sortEmailAZ' },
+  { value: 'email:descend', column: 'email', order: 'descend', labelKey: 'pages.clients.sortEmailZA' },
+  { value: 'traffic:descend', column: 'traffic', order: 'descend', labelKey: 'pages.clients.sortMostTraffic' },
+  { value: 'remaining:descend', column: 'remaining', order: 'descend', labelKey: 'pages.clients.sortHighestRemaining' },
+  { value: 'expiryTime:ascend', column: 'expiryTime', order: 'ascend', labelKey: 'pages.clients.sortExpiringSoonest' },
 ];
 
 const DEFAULT_SORT = SORT_OPTIONS[0];
@@ -195,9 +197,9 @@ export default function ClientsPage() {
     summary: serverSummary,
     allGroups,
     setQuery,
-    inbounds, onlines, loading, fetched, fetchError, subSettings,
+    inbounds, onlines, loading, transitioning, fetched, fetchError, subSettings,
     tgBotEnable, expireDiff, trafficDiff, pageSize,
-    create, update, remove, bulkDelete, bulkAdjust, bulkAddToGroup, bulkRemoveFromGroup, attach, bulkAttach, detach, bulkDetach,
+    create, update, remove, bulkDelete, bulkAdjust, bulkAddToGroup, bulkRemoveFromGroup, attach, setExternalLinks, bulkAttach, detach, bulkDetach,
     resetTraffic, resetAllTraffics, delDepleted, setEnable,
     applyTrafficEvent, applyClientStatsEvent,
     refresh,
@@ -209,11 +211,16 @@ export default function ClientsPage() {
     client_stats: applyClientStatsEvent,
   });
 
+  // Node list for the Nodes filter; the section only renders when the panel
+  // actually manages nodes (#4997).
+  const { nodes } = useNodesQuery();
+
   const [togglingEmail, setTogglingEmail] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [editingAttachedIds, setEditingAttachedIds] = useState<number[]>([]);
+  const [editingExternalLinks, setEditingExternalLinks] = useState<ExternalLink[]>([]);
   const [infoOpen, setInfoOpen] = useState(false);
   const [infoClient, setInfoClient] = useState<ClientRecord | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
@@ -255,6 +262,23 @@ export default function ClientsPage() {
     setCurrentPage(1);
   }, [debouncedSearch, filters, sortColumn, sortOrder]);
 
+  // The node filter maps onto inbound ids client-side (#4997): the paging API
+  // already accepts an inbound CSV, so nodes never have to reach the backend.
+  // Sentinel 0 = "local panel" (inbounds without a nodeId).
+  const effectiveInboundCsv = useMemo(() => {
+    if (!filters.nodeIds.length) return filters.inboundIds.join(',');
+    const nodeSet = new Set(filters.nodeIds);
+    const nodeInboundIds = inbounds
+      .filter((ib) => nodeSet.has(ib.nodeId ?? 0))
+      .map((ib) => ib.id);
+    const pool = filters.inboundIds.length
+      ? nodeInboundIds.filter((id) => filters.inboundIds.includes(id))
+      : nodeInboundIds;
+    // Nothing matches the selected nodes: send an impossible id so the filter
+    // yields an honest empty result instead of being silently ignored.
+    return pool.length ? pool.join(',') : '-1';
+  }, [filters.nodeIds, filters.inboundIds, inbounds]);
+
   useEffect(() => {
     setQuery({
       page: currentPage,
@@ -262,7 +286,7 @@ export default function ClientsPage() {
       search: debouncedSearch,
       filter: filters.buckets.join(','),
       protocol: filters.protocols.join(','),
-      inbound: filters.inboundIds.join(','),
+      inbound: effectiveInboundCsv,
       expiryFrom: filters.expiryFrom,
       expiryTo: filters.expiryTo,
       usageFrom: gbToBytes(filters.usageFromGB),
@@ -274,7 +298,7 @@ export default function ClientsPage() {
       sort: sortColumn || undefined,
       order: sortOrder || undefined,
     });
-  }, [setQuery, currentPage, tablePageSize, debouncedSearch, filters, sortColumn, sortOrder]);
+  }, [setQuery, currentPage, tablePageSize, debouncedSearch, filters, effectiveInboundCsv, sortColumn, sortOrder]);
 
   const activeCount = activeFilterCount(filters);
 
@@ -406,6 +430,7 @@ export default function ClientsPage() {
     setFormMode('add');
     setEditingClient(null);
     setEditingAttachedIds([]);
+    setEditingExternalLinks([]);
     setFormOpen(true);
   }
 
@@ -418,6 +443,7 @@ export default function ClientsPage() {
     setEditingClient(merged);
     const ids = full?.inboundIds ?? (Array.isArray(row.inboundIds) ? row.inboundIds : []);
     setEditingAttachedIds([...ids]);
+    setEditingExternalLinks(Array.isArray(full?.externalLinks) ? [...full.externalLinks] : []);
     setFormOpen(true);
   }
 
@@ -544,10 +570,18 @@ export default function ClientsPage() {
 
   const onSave = useCallback(async (
     payload: Record<string, unknown> | { client: Record<string, unknown>; inboundIds: number[] },
-    meta: { isEdit: false } | { isEdit: true; email: string; attach: number[]; detach: number[] },
+    meta:
+      | { isEdit: false; email: string; externalLinks: ExternalLinkInput[] }
+      | { isEdit: true; email: string; attach: number[]; detach: number[]; externalLinks: ExternalLinkInput[] },
   ) => {
     if (!meta.isEdit) {
-      return create(payload);
+      const createMsg = await create(payload);
+      if (!createMsg?.success) return createMsg;
+      if (meta.email && meta.externalLinks.length > 0) {
+        const r = await setExternalLinks(meta.email, meta.externalLinks);
+        if (!r?.success) return r;
+      }
+      return createMsg;
     }
     const updateMsg = await update(meta.email, payload);
     if (!updateMsg?.success) return updateMsg;
@@ -559,8 +593,11 @@ export default function ClientsPage() {
       const r = await detach(meta.email, meta.detach);
       if (!r?.success) return r;
     }
+    // Always replace the client's external links (an empty set clears them).
+    const r = await setExternalLinks(meta.email, meta.externalLinks);
+    if (!r?.success) return r;
     return updateMsg;
-  }, [create, update, attach, detach]);
+  }, [create, update, attach, detach, setExternalLinks]);
 
   const pageClass = useMemo(() => {
     const classes = ['clients-page'];
@@ -582,19 +619,19 @@ export default function ClientsPage() {
       render: (_v, record) => (
         <Space size={4}>
           <Tooltip title={t('pages.clients.qrCode')}>
-            <Button size="small" type="text" icon={<QrcodeOutlined />} onClick={() => onShowQr(record)} />
+            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<QrcodeOutlined />} onClick={() => onShowQr(record)} />
           </Tooltip>
           <Tooltip title={t('pages.clients.clientInfo')}>
-            <Button size="small" type="text" icon={<InfoCircleOutlined />} onClick={() => onShowInfo(record)} />
+            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<InfoCircleOutlined />} onClick={() => onShowInfo(record)} />
           </Tooltip>
           <Tooltip title={t('pages.inbounds.resetTraffic')}>
-            <Button size="small" type="text" icon={<RetweetOutlined />} onClick={() => onResetTraffic(record)} />
+            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<RetweetOutlined />} onClick={() => onResetTraffic(record)} />
           </Tooltip>
           <Tooltip title={t('edit')}>
-            <Button size="small" type="text" icon={<EditOutlined />} onClick={() => onEdit(record)} />
+            <Button size="small" type="text" style={{ fontSize: 18 }} icon={<EditOutlined />} onClick={() => onEdit(record)} />
           </Tooltip>
           <Tooltip title={t('delete')}>
-            <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => onDelete(record)} />
+            <Button size="small" type="text" danger style={{ fontSize: 18 }} icon={<DeleteOutlined />} onClick={() => onDelete(record)} />
           </Tooltip>
         </Space>
       ),
@@ -626,7 +663,7 @@ export default function ClientsPage() {
           </Tooltip>
         );
         if (record.enable && isOnline(record.email)) return (
-          <Tag color="green"><span className="online-dot" />{t('pages.clients.online')}</Tag>
+          <Tag color="green" className="dot-tag"><span className="online-dot" />{t('pages.clients.online')}</Tag>
         );
         if (!record.enable) return <Tag>{t('disabled')}</Tag>;
         if (bucket === 'expiring') return <Tag color="orange">{t('depletingSoon')}</Tag>;
@@ -640,6 +677,7 @@ export default function ClientsPage() {
     {
       title: t('pages.clients.client'),
       key: 'email',
+      width: 220,
       render: (_v, record) => (
         <div className="email-cell">
           <span className="email">{record.email}</span>
@@ -719,7 +757,7 @@ export default function ClientsPage() {
     {
       title: t('pages.clients.traffic'),
       key: 'traffic',
-      width: 240,
+      width: 300,
       render: (_v, record) => (
         <ClientTrafficCell
           up={record.traffic?.up}
@@ -739,6 +777,7 @@ export default function ClientsPage() {
     {
       title: t('pages.clients.duration'),
       key: 'expiryTime',
+      width: 130,
       render: (_v, record) => (
         <Tooltip title={expiryLabel(record)}>
           <Tag color={expiryColor(record)}>{record.expiryTime ? expiryRelative(record) : '∞'}</Tag>
@@ -900,40 +939,40 @@ export default function ClientsPage() {
                             menu={{
                               items: selectedRowKeys.length > 0
                                 ? [
-                                    {
-                                      key: 'adjust',
-                                      icon: <ClockCircleOutlined />,
-                                      label: t('pages.clients.adjust'),
-                                      onClick: () => setBulkAdjustOpen(true),
-                                    },
-                                    {
-                                      key: 'subLinks',
-                                      icon: <LinkOutlined />,
-                                      label: t('pages.clients.subLinks'),
-                                      onClick: () => setSubLinksOpen(true),
-                                    },
-                                  ]
+                                  {
+                                    key: 'adjust',
+                                    icon: <ClockCircleOutlined />,
+                                    label: t('pages.clients.adjust'),
+                                    onClick: () => setBulkAdjustOpen(true),
+                                  },
+                                  {
+                                    key: 'subLinks',
+                                    icon: <LinkOutlined />,
+                                    label: t('pages.clients.subLinks'),
+                                    onClick: () => setSubLinksOpen(true),
+                                  },
+                                ]
                                 : [
-                                    {
-                                      key: 'bulk',
-                                      icon: <UsergroupAddOutlined />,
-                                      label: t('pages.clients.bulk'),
-                                      onClick: () => setBulkAddOpen(true),
-                                    },
-                                    {
-                                      key: 'resetAll',
-                                      icon: <RetweetOutlined />,
-                                      label: t('pages.clients.resetAllTraffics'),
-                                      onClick: onResetAllTraffics,
-                                    },
-                                    {
-                                      key: 'delDepleted',
-                                      icon: <RestOutlined />,
-                                      label: t('pages.clients.delDepleted'),
-                                      danger: true,
-                                      onClick: onDelDepleted,
-                                    },
-                                  ],
+                                  {
+                                    key: 'bulk',
+                                    icon: <UsergroupAddOutlined />,
+                                    label: t('pages.clients.bulk'),
+                                    onClick: () => setBulkAddOpen(true),
+                                  },
+                                  {
+                                    key: 'resetAll',
+                                    icon: <RetweetOutlined />,
+                                    label: t('pages.clients.resetAllTraffics'),
+                                    onClick: onResetAllTraffics,
+                                  },
+                                  {
+                                    key: 'delDepleted',
+                                    icon: <RestOutlined />,
+                                    label: t('pages.clients.delDepleted'),
+                                    danger: true,
+                                    onClick: onDelDepleted,
+                                  },
+                                ],
                             }}
                           >
                             <Button icon={<MoreOutlined />}>
@@ -1075,7 +1114,7 @@ export default function ClientsPage() {
                         <Table<ClientRecord>
                           columns={columns}
                           dataSource={sortedClients}
-                          loading={loading}
+                          loading={transitioning}
                           rowKey="email"
                           rowSelection={rowSelection}
                           pagination={tablePagination}
@@ -1092,7 +1131,7 @@ export default function ClientsPage() {
                           }}
                         />
                       ) : (
-                        <Spin spinning={loading}>
+                        <Spin spinning={transitioning}>
                           <div className="client-cards">
                             {filteredClients.length > 0 && (
                               <div className="card-bulk-bar">
@@ -1218,10 +1257,12 @@ export default function ClientsPage() {
             mode={formMode}
             client={editingClient}
             attachedIds={editingAttachedIds}
+            attachedExternalLinks={editingExternalLinks}
             inbounds={inbounds}
             tgBotEnable={tgBotEnable}
             groups={allGroups}
             save={onSave}
+            resetTraffic={resetTraffic}
             onOpenChange={setFormOpen}
           />
         </LazyMount>
@@ -1333,6 +1374,7 @@ export default function ClientsPage() {
             inbounds={inbounds}
             protocols={protocolOptions}
             groups={groupOptions}
+            nodes={nodes}
           />
         </LazyMount>
       </Layout>

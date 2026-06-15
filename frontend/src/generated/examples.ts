@@ -292,6 +292,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "shareAddrStrategy": "node",
     "sniffing": null,
     "streamSettings": null,
+    "subSortIndex": 1,
     "tag": "in-443-tcp",
     "total": 0,
     "trafficReset": "never",
@@ -315,6 +316,7 @@ export const EXAMPLES: Record<string, unknown> = {
   },
   "InboundOption": {
     "id": 1,
+    "nodeId": null,
     "port": 443,
     "protocol": "vless",
     "remark": "VLESS-443",
@@ -352,6 +354,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "memPct": 45.1,
     "name": "de-fra-1",
     "onlineCount": 3,
+    "outboundTag": "",
     "panelVersion": "v3.x.x",
     "parentGuid": "",
     "pinnedCertSha256": "",

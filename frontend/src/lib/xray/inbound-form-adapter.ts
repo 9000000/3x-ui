@@ -12,6 +12,9 @@ import type { Sniffing } from '@/schemas/primitives';
 import type { z } from 'zod';
 import { normalizeStreamSettingsForWire } from '@/lib/xray/stream-wire-normalize';
 import { canEnableSniffing } from '@/lib/xray/protocol-capabilities';
+import { XHttpXmuxSchema } from '@/schemas/protocols/stream/xhttp';
+
+const XMUX_DEFAULTS = XHttpXmuxSchema.parse({});
 
 // Plain-data adapter between the panel's stored inbound row shape and
 // the typed InboundFormValues that Form.useForm<T> carries inside
@@ -39,6 +42,7 @@ export interface RawInboundRow {
   nodeId?: number | null;
   shareAddrStrategy?: string;
   shareAddr?: string;
+  subSortIndex?: number;
   clientStats?: unknown;
 }
 
@@ -65,6 +69,7 @@ export interface WireInboundPayload {
   nodeId?: number;
   shareAddrStrategy: ShareAddrStrategy;
   shareAddr: string;
+  subSortIndex: number;
 }
 
 function coerceJsonObject(value: unknown): Record<string, unknown> {
@@ -155,6 +160,16 @@ export function rawInboundToFormValues(row: RawInboundRow): InboundFormValues {
   if (streamSettings) {
     healStreamNetworkKey(streamSettings as unknown as Record<string, unknown>);
     synthesizeTlsCertUseFile(streamSettings as unknown as Record<string, unknown>);
+    const streamRecord = streamSettings as unknown as Record<string, unknown>;
+    const xh = streamRecord.xhttpSettings;
+    if (xh && typeof xh === 'object' && !Array.isArray(xh)) {
+      const xhttp = xh as Record<string, unknown>;
+      const xmux = xhttp.xmux;
+      if (xmux && typeof xmux === 'object' && !Array.isArray(xmux)) {
+        xhttp.enableXmux = true;
+        xhttp.xmux = { ...XMUX_DEFAULTS, ...(xmux as Record<string, unknown>) };
+      }
+    }
   }
   const sniffing = coerceJsonObject(row.sniffing) as unknown as Sniffing;
 
@@ -175,6 +190,7 @@ export function rawInboundToFormValues(row: RawInboundRow): InboundFormValues {
     nodeId: row.nodeId ?? null,
     shareAddrStrategy: coerceShareAddrStrategy(row.shareAddrStrategy),
     shareAddr: row.shareAddr ?? '',
+    subSortIndex: Math.max(1, row.subSortIndex ?? 1),
     protocol,
     settings,
   } as InboundFormValues;
@@ -322,6 +338,7 @@ export function formValuesToWirePayload(values: InboundFormValues): WireInboundP
     tag: values.tag,
     shareAddrStrategy: values.shareAddrStrategy,
     shareAddr: values.shareAddr,
+    subSortIndex: values.subSortIndex,
   };
   if (values.nodeId != null) payload.nodeId = values.nodeId;
   return payload;

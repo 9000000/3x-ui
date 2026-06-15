@@ -50,6 +50,7 @@ type Inbound struct {
 	Down                 int64                `json:"down" form:"down"`                                                                                                                                             // Download traffic in bytes
 	Total                int64                `json:"total" form:"total"`                                                                                                                                           // Total traffic limit in bytes
 	Remark               string               `json:"remark" form:"remark" example:"VLESS-443"`                                                                                                                     // Human-readable remark
+	SubSortIndex         int                  `json:"subSortIndex" form:"subSortIndex" gorm:"default:1" validate:"omitempty,gte=1" example:"1"`                                                                     // 1-based sort order of this inbound's links in subscription output only (lower first; ties by id)
 	Enable               bool                 `json:"enable" form:"enable" gorm:"index:idx_enable_traffic_reset,priority:1" example:"true"`                                                                         // Whether the inbound is enabled
 	ExpiryTime           int64                `json:"expiryTime" form:"expiryTime"`                                                                                                                                 // Expiration timestamp
 	TrafficReset         string               `json:"trafficReset" form:"trafficReset" gorm:"default:never;index:idx_enable_traffic_reset,priority:2" validate:"omitempty,oneof=never hourly daily weekly monthly"` // Traffic reset schedule
@@ -461,6 +462,7 @@ type Node struct {
 	PinnedCertSha256    string   `json:"pinnedCertSha256" form:"pinnedCertSha256" gorm:"column:pinned_cert_sha256"`
 	InboundSyncMode     string   `json:"inboundSyncMode" form:"inboundSyncMode" gorm:"column:inbound_sync_mode;default:all" validate:"omitempty,oneof=all selected"`
 	InboundTags         []string `json:"inboundTags" form:"inboundTags" gorm:"serializer:json;column:inbound_tags"`
+	OutboundTag         string   `json:"outboundTag" form:"outboundTag" gorm:"column:outbound_tag"`
 
 	// Guid is the remote panel's stable self-identifier (its panelGuid),
 	// learned from each heartbeat. It is the globally stable node identity used
@@ -570,7 +572,7 @@ type ClientRecord struct {
 	ExpiryTime int64  `json:"expiryTime" gorm:"column:expiry_time"`
 	Enable     bool   `json:"enable" gorm:"default:true"`
 	TgID       int64  `json:"tgId" gorm:"column:tg_id"`
-	Group      string `json:"group" gorm:"column:group_name;default:''"`
+	Group      string `json:"group" gorm:"column:group_name;default:'';index:idx_client_record_group"`
 	Comment    string `json:"comment"`
 	Reset      int    `json:"reset" gorm:"default:0"`
 	CreatedAt  int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
@@ -627,6 +629,31 @@ type ClientInbound struct {
 }
 
 func (ClientInbound) TableName() string { return "client_inbounds" }
+
+// ClientExternalLink is a per-client entry surfaced in the client's
+// subscription. Two kinds:
+//   - "link": a single third-party share link (vless://, vmess://, trojan://,
+//     ss://, hysteria2://, wireguard://). Emitted verbatim in raw subs; parsed
+//     into an outbound/proxy for JSON and Clash.
+//   - "subscription": a remote subscription URL. The panel fetches it (cached),
+//     decodes its links, and merges them into the client's subscription.
+type ClientExternalLink struct {
+	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	ClientId  int    `json:"clientId" gorm:"index;column:client_id"`
+	Kind      string `json:"kind" gorm:"column:kind"`
+	Value     string `json:"value" gorm:"column:value"`
+	Remark    string `json:"remark" gorm:"column:remark"`
+	SortIndex int    `json:"sortIndex" gorm:"column:sort_index"`
+	CreatedAt int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
+}
+
+func (ClientExternalLink) TableName() string { return "client_external_links" }
+
+// External link kinds.
+const (
+	ExternalLinkKindLink         = "link"
+	ExternalLinkKindSubscription = "subscription"
+)
 
 type InboundFallback struct {
 	Id        int    `json:"id" gorm:"primaryKey;autoIncrement"`

@@ -1345,6 +1345,12 @@
           },
           "sniffing": {},
           "streamSettings": {},
+          "subSortIndex": {
+            "description": "1-based sort order of this inbound's links in subscription output only (lower first; ties by id)",
+            "example": 1,
+            "minimum": 1,
+            "type": "integer"
+          },
           "tag": {
             "example": "in-443-tcp",
             "type": "string"
@@ -1385,6 +1391,7 @@
           "shareAddrStrategy",
           "sniffing",
           "streamSettings",
+          "subSortIndex",
           "tag",
           "total",
           "trafficReset",
@@ -1457,6 +1464,11 @@
         "properties": {
           "id": {
             "example": 1,
+            "type": "integer"
+          },
+          "nodeId": {
+            "description": "Hosting node; nil for this panel's own inbounds. Lets the clients\npage map a node filter onto inbound IDs (#4997).",
+            "nullable": true,
             "type": "integer"
           },
           "port": {
@@ -1609,6 +1621,9 @@
             "example": 3,
             "type": "integer"
           },
+          "outboundTag": {
+            "type": "string"
+          },
           "panelVersion": {
             "example": "v3.x.x",
             "type": "string"
@@ -1696,6 +1711,7 @@
           "memPct",
           "name",
           "onlineCount",
+          "outboundTag",
           "panelVersion",
           "pinnedCertSha256",
           "port",
@@ -2148,6 +2164,7 @@
                       "shareAddrStrategy": "node",
                       "sniffing": null,
                       "streamSettings": null,
+                      "subSortIndex": 1,
                       "tag": "in-443-tcp",
                       "total": 0,
                       "trafficReset": "never",
@@ -2244,6 +2261,7 @@
                   "obj": [
                     {
                       "id": 1,
+                      "nodeId": null,
                       "port": 443,
                       "protocol": "vless",
                       "remark": "VLESS-443",
@@ -4376,7 +4394,7 @@
         "tags": [
           "Clients"
         ],
-        "summary": "Fetch one client by email, including the inbound IDs it is attached to.",
+        "summary": "Fetch one client by email, including the inbound IDs and external config IDs it is attached to.",
         "operationId": "get_panel_api_clients_get_email",
         "parameters": [
           {
@@ -4674,6 +4692,74 @@
               "example": {
                 "inboundIds": [
                   5
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/clients/{email}/externalLinks": {
+      "post": {
+        "tags": [
+          "Clients"
+        ],
+        "summary": "Replace a client's external links (per-client share links and remote subscription URLs surfaced in their subscription). Sends the full set; the server replaces all rows.",
+        "operationId": "post_panel_api_clients_email_externalLinks",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "path",
+            "required": true,
+            "description": "Client email (unique identifier).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "externalLinks": [
+                  {
+                    "kind": "link",
+                    "value": "vless://uuid@host:443?...#srv",
+                    "remark": "DE"
+                  },
+                  {
+                    "kind": "subscription",
+                    "value": "https://provider.example/sub/abc",
+                    "remark": "Provider"
+                  }
                 ]
               }
             }
@@ -6036,6 +6122,7 @@
                       "memPct": 45.1,
                       "name": "de-fra-1",
                       "onlineCount": 3,
+                      "outboundTag": "",
                       "panelVersion": "v3.x.x",
                       "parentGuid": "",
                       "pinnedCertSha256": "",
@@ -7477,6 +7564,46 @@
         ],
         "summary": "Test an outbound configuration. Sends the outbound JSON (required), optionally all outbounds (to resolve sockopt.dialerProxy dependencies), and a mode flag.",
         "operationId": "post_panel_api_xray_testOutbound",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/xray/testOutbounds": {
+      "post": {
+        "tags": [
+          "Xray Settings"
+        ],
+        "summary": "Test a batch of outbounds (max 50) through one shared temp xray instance. Returns an array of results in input order, each with the outbound tag, delay, HTTP status and a connect/TLS/TTFB timing breakdown.",
+        "operationId": "post_panel_api_xray_testOutbounds",
         "requestBody": {
           "required": true,
           "content": {

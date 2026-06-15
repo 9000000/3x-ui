@@ -314,6 +314,7 @@ export const InboundSchema = z.object({
   shareAddrStrategy: z.enum(['node', 'listen', 'custom']),
   sniffing: z.unknown(),
   streamSettings: z.unknown(),
+  subSortIndex: z.number().int().min(1),
   tag: z.string(),
   total: z.number().int(),
   trafficReset: z.enum(['never', 'hourly', 'daily', 'weekly', 'monthly']),
@@ -343,6 +344,7 @@ export type InboundFallback = z.infer<typeof InboundFallbackSchema>;
 
 export const InboundOptionSchema = z.object({
   id: z.number().int(),
+  nodeId: z.number().int().nullable().optional(),
   port: z.number().int(),
   protocol: z.string(),
   remark: z.string(),
@@ -382,6 +384,7 @@ export const NodeSchema = z.object({
   memPct: z.number(),
   name: z.string(),
   onlineCount: z.number().int(),
+  outboundTag: z.string(),
   panelVersion: z.string(),
   parentGuid: z.string().optional(),
   pinnedCertSha256: z.string(),

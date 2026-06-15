@@ -59,6 +59,7 @@ func (a *ClientController) initRouter(g *gin.RouterGroup) {
 	g.POST("/del/:email", a.delete)
 	g.POST("/:email/attach", a.attach)
 	g.POST("/:email/detach", a.detach)
+	g.POST("/:email/externalLinks", a.setExternalLinks)
 	g.POST("/resetAllTraffics", a.resetAllTraffics)
 	g.POST("/delDepleted", a.delDepleted)
 	g.POST("/bulkAdjust", a.bulkAdjust)
@@ -112,13 +113,25 @@ func (a *ClientController) get(c *gin.Context) {
 		jsonMsg(c, I18nWeb(c, "get"), err)
 		return
 	}
+	externalLinks, err := a.clientService.GetExternalLinksForRecord(rec.Id)
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "get"), err)
+		return
+	}
 	flow, err := a.clientService.EffectiveFlow(nil, rec.Id)
 	if err != nil {
 		jsonMsg(c, I18nWeb(c, "get"), err)
 		return
 	}
 	rec.Flow = flow
-	jsonObj(c, gin.H{"client": rec, "inboundIds": inboundIds}, nil)
+	// Consumed bytes (up+down, including cross-node global overlay) so API
+	// consumers can pair usage with the client's totalGB quota (#4973).
+	// Best-effort: a traffic lookup failure must not break the client fetch.
+	var usedTraffic int64
+	if t, tErr := a.inboundService.GetClientTrafficByEmail(email); tErr == nil && t != nil {
+		usedTraffic = t.Up + t.Down
+	}
+	jsonObj(c, gin.H{"client": rec, "inboundIds": inboundIds, "externalLinks": externalLinks, "usedTraffic": usedTraffic}, nil)
 }
 
 func (a *ClientController) create(c *gin.Context) {
@@ -178,6 +191,10 @@ type attachDetachBody struct {
 	InboundIds []int `json:"inboundIds"`
 }
 
+type externalLinksBody struct {
+	ExternalLinks []service.ExternalLinkInput `json:"externalLinks"`
+}
+
 func (a *ClientController) attach(c *gin.Context) {
 	email := c.Param("email")
 	var body attachDetachBody
@@ -194,6 +211,21 @@ func (a *ClientController) attach(c *gin.Context) {
 	if needRestart {
 		a.xrayService.SetToNeedRestart()
 	}
+	notifyClientsChanged()
+}
+
+func (a *ClientController) setExternalLinks(c *gin.Context) {
+	email := c.Param("email")
+	var body externalLinksBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	if err := a.clientService.SetExternalLinksByEmail(email, body.ExternalLinks); err != nil {
+		jsonMsg(c, I18nWeb(c, "somethingWentWrong"), err)
+		return
+	}
+	jsonMsg(c, I18nWeb(c, "pages.inbounds.toasts.inboundClientUpdateSuccess"), nil)
 	notifyClientsChanged()
 }
 

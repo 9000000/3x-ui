@@ -3,10 +3,8 @@ package service
 import (
 	"context"
 	"crypto/sha256"
-	"crypto/subtle"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,9 +17,12 @@ import (
 
 	"github.com/mhsanaei/3x-ui/v3/internal/database"
 	"github.com/mhsanaei/3x-ui/v3/internal/database/model"
+	"github.com/mhsanaei/3x-ui/v3/internal/logger"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/common"
+	"github.com/mhsanaei/3x-ui/v3/internal/util/json_util"
 	"github.com/mhsanaei/3x-ui/v3/internal/util/netsafe"
 	"github.com/mhsanaei/3x-ui/v3/internal/web/runtime"
+	"github.com/mhsanaei/3x-ui/v3/internal/xray"
 )
 
 type HeartbeatPatch struct {
@@ -43,75 +44,6 @@ type HeartbeatPatch struct {
 }
 
 type NodeService struct{}
-
-var nodeHTTPClient = &http.Client{
-	Transport: &http.Transport{
-		MaxIdleConns:        64,
-		MaxIdleConnsPerHost: 4,
-		IdleConnTimeout:     60 * time.Second,
-		DialContext:         netsafe.SSRFGuardedDialContext,
-	},
-}
-
-// nodeHTTPClientFor returns the HTTP client used to reach a node, honoring its
-// per-node TLS verification mode. "verify" (or any http node) uses the shared
-// client with default certificate validation. "skip" disables validation.
-// "pin" disables the default chain check but verifies the leaf certificate's
-// SHA-256 against the stored pin, keeping MITM protection for self-signed certs.
-func nodeHTTPClientFor(n *model.Node) (*http.Client, error) {
-	mode := n.TlsVerifyMode
-	if mode == "" {
-		mode = "verify"
-	}
-	if mode == "verify" || n.Scheme == "http" {
-		return nodeHTTPClient, nil
-	}
-	tlsCfg := &tls.Config{InsecureSkipVerify: true}
-	if mode == "pin" {
-		want, err := decodeCertPin(n.PinnedCertSha256)
-		if err != nil {
-			return nil, err
-		}
-		tlsCfg.VerifyConnection = func(cs tls.ConnectionState) error {
-			if len(cs.PeerCertificates) == 0 {
-				return common.NewError("node presented no certificate")
-			}
-			sum := sha256.Sum256(cs.PeerCertificates[0].Raw)
-			if subtle.ConstantTimeCompare(sum[:], want) != 1 {
-				return common.NewError("node certificate does not match pinned SHA-256")
-			}
-			return nil
-		}
-	}
-	return &http.Client{
-		Transport: &http.Transport{
-			MaxIdleConns:        64,
-			MaxIdleConnsPerHost: 4,
-			IdleConnTimeout:     60 * time.Second,
-			DialContext:         netsafe.SSRFGuardedDialContext,
-			TLSClientConfig:     tlsCfg,
-		},
-	}, nil
-}
-
-// decodeCertPin accepts a SHA-256 certificate hash as base64 (the format used
-// by Xray's pinnedPeerCertSha256) or hex with optional colons (the openssl
-// -fingerprint style) and returns the 32 raw bytes.
-func decodeCertPin(s string) ([]byte, error) {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return nil, common.NewError("certificate pin is empty")
-	}
-	if b, err := hex.DecodeString(strings.ReplaceAll(s, ":", "")); err == nil && len(b) == sha256.Size {
-		return b, nil
-	}
-	for _, enc := range []*base64.Encoding{base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding} {
-		if b, err := enc.DecodeString(s); err == nil && len(b) == sha256.Size {
-			return b, nil
-		}
-	}
-	return nil, common.NewError("certificate pin must be a SHA-256 hash (base64 or hex)")
-}
 
 // FetchCertFingerprint connects to the node over HTTPS without verifying the
 // certificate and returns the leaf certificate's SHA-256 as base64, so the UI
@@ -367,7 +299,7 @@ func (s *NodeService) normalize(n *model.Node) error {
 		n.InboundTags = tags
 	}
 	if n.TlsVerifyMode == "pin" {
-		if _, err := decodeCertPin(n.PinnedCertSha256); err != nil {
+		if _, err := runtime.DecodeCertPin(n.PinnedCertSha256); err != nil {
 			return common.NewError(err.Error())
 		}
 	}
@@ -410,6 +342,7 @@ func (s *NodeService) Update(id int, in *model.Node) error {
 		"pinned_cert_sha256":    in.PinnedCertSha256,
 		"inbound_sync_mode":     in.InboundSyncMode,
 		"inbound_tags":          string(inboundTagsJSON),
+		"outbound_tag":          in.OutboundTag,
 	}
 	if err := db.Model(model.Node{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 		return err
@@ -424,7 +357,7 @@ func (s *NodeService) GetRemoteInboundOptions(ctx context.Context, n *model.Node
 	if err := s.normalize(n); err != nil {
 		return nil, err
 	}
-	return runtime.NewRemote(n).ListInboundOptions(ctx)
+	return runtime.NewRemote(n, nil).ListInboundOptions(ctx)
 }
 
 // EnsureInboundTagAllowed adds a panel-managed inbound's tag to the node's
@@ -498,7 +431,13 @@ func (s *NodeService) Delete(id int) error {
 
 func (s *NodeService) SetEnable(id int, enable bool) error {
 	db := database.GetDB()
-	return db.Model(model.Node{}).Where("id = ?", id).Update("enable", enable).Error
+	if err := db.Model(model.Node{}).Where("id = ?", id).Update("enable", enable).Error; err != nil {
+		return err
+	}
+	if mgr := runtime.GetManager(); mgr != nil {
+		mgr.InvalidateNode(id)
+	}
+	return nil
 }
 
 // GetWebCertFiles asks a node for its own web TLS certificate/key file paths,
@@ -659,6 +598,115 @@ func (s *NodeService) AggregateNodeMetric(id int, metric string, bucketSeconds i
 }
 
 func (s *NodeService) Probe(ctx context.Context, n *model.Node) (HeartbeatPatch, error) {
+	proxyURL := ""
+	if n.OutboundTag != "" {
+		if mgr := runtime.GetManager(); mgr != nil {
+			proxyURL = mgr.NodeEgressProxyURL(n.Id)
+		}
+	}
+	return s.probe(ctx, n, proxyURL)
+}
+
+func (s *NodeService) ProbeWithOutbound(ctx context.Context, n *model.Node, outboundTag string) (HeartbeatPatch, error) {
+	if outboundTag == "" {
+		return s.Probe(ctx, n)
+	}
+	proc := XrayProcess()
+	if proc == nil || !proc.IsRunning() {
+		return s.Probe(ctx, n)
+	}
+	apiPort := proc.GetAPIPort()
+	if apiPort <= 0 {
+		return s.Probe(ctx, n)
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return s.Probe(ctx, n)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+
+	tag := fmt.Sprintf("node-test-%d-%d", n.Id, time.Now().UnixNano())
+	proxyURL := fmt.Sprintf("socks5://127.0.0.1:%d", port)
+
+	inboundJSON, err := json.Marshal(xray.InboundConfig{
+		Listen:   json_util.RawMessage(`"127.0.0.1"`),
+		Port:     port,
+		Protocol: "socks",
+		Settings: json_util.RawMessage(`{"auth":"noauth","udp":false}`),
+		Tag:      tag,
+	})
+	if err != nil {
+		return s.Probe(ctx, n)
+	}
+
+	cfg := proc.GetConfig()
+	routing := map[string]any{}
+	if len(cfg.RouterConfig) > 0 {
+		_ = json.Unmarshal(cfg.RouterConfig, &routing)
+	}
+	rules, _ := routing["rules"].([]any)
+	rule := map[string]any{
+		"type":       "field",
+		"inboundTag": []any{tag},
+	}
+	if routingTagIsBalancer(routing, outboundTag) {
+		rule["balancerTag"] = outboundTag
+	} else {
+		rule["outboundTag"] = outboundTag
+	}
+	routing["rules"] = append([]any{rule}, rules...)
+	routingJSON, err := json.Marshal(routing)
+	if err != nil {
+		return s.Probe(ctx, n)
+	}
+	originalRoutingJSON := cfg.RouterConfig
+
+	api := xray.XrayAPI{}
+	if err := api.Init(apiPort); err != nil {
+		return s.Probe(ctx, n)
+	}
+	defer api.Close()
+
+	if err := api.AddInbound(inboundJSON); err != nil {
+		return s.Probe(ctx, n)
+	}
+	removed := false
+	defer func() {
+		if removed {
+			return
+		}
+		if err := api.DelInbound(tag); err != nil {
+			logger.Warning("remove temp node test inbound failed:", err)
+		}
+	}()
+
+	if err := api.ApplyRoutingConfig(routingJSON); err != nil {
+		return s.Probe(ctx, n)
+	}
+	defer func() {
+		restore := originalRoutingJSON
+		if len(restore) == 0 {
+			restore = []byte("{}")
+		}
+		if err := api.ApplyRoutingConfig(restore); err != nil {
+			logger.Warning("restore routing after node test failed:", err)
+		}
+	}()
+
+	patch, err := s.probe(ctx, n, proxyURL)
+	removed = true
+	if delErr := api.DelInbound(tag); delErr != nil {
+		logger.Warning("remove temp node test inbound failed:", delErr)
+	}
+	if err != nil {
+		return patch, err
+	}
+	return patch, nil
+}
+
+func (s *NodeService) probe(ctx context.Context, n *model.Node, proxyURL string) (HeartbeatPatch, error) {
 	patch := HeartbeatPatch{LastHeartbeat: time.Now().Unix()}
 
 	addr, err := netsafe.NormalizeHost(n.Address)
@@ -692,7 +740,7 @@ func (s *NodeService) Probe(ctx context.Context, n *model.Node) (HeartbeatPatch,
 	}
 	req.Header.Set("Accept", "application/json")
 
-	client, err := nodeHTTPClientFor(n)
+	client, err := runtime.HTTPClientForNode(n, proxyURL)
 	if err != nil {
 		patch.LastError = err.Error()
 		return patch, err

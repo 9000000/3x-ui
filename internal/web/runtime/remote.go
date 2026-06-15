@@ -23,15 +23,6 @@ import (
 
 const remoteHTTPTimeout = 10 * time.Second
 
-var remoteHTTPClient = &http.Client{
-	Transport: &http.Transport{
-		MaxIdleConns:        64,
-		MaxIdleConnsPerHost: 4,
-		IdleConnTimeout:     60 * time.Second,
-		DialContext:         netsafe.SSRFGuardedDialContext,
-	},
-}
-
 type envelope struct {
 	Success bool            `json:"success"`
 	Msg     string          `json:"msg"`
@@ -43,6 +34,14 @@ type Remote struct {
 
 	mu            sync.RWMutex
 	remoteIDByTag map[string]int
+
+	// Per-node client honoring the TLS verify mode, built once and reused; a
+	// node config change drops the cached Remote so the next one rebuilds it.
+	clientOnce sync.Once
+	client     *http.Client
+	clientErr  error
+
+	egressResolver NodeEgressResolver
 }
 
 type RemoteInboundOption struct {
@@ -52,14 +51,28 @@ type RemoteInboundOption struct {
 	Port     int            `json:"port"`
 }
 
-func NewRemote(n *model.Node) *Remote {
+func NewRemote(n *model.Node, r NodeEgressResolver) *Remote {
 	return &Remote{
-		node:          n,
-		remoteIDByTag: make(map[string]int),
+		node:           n,
+		remoteIDByTag:  make(map[string]int),
+		egressResolver: r,
 	}
 }
 
 func (r *Remote) Name() string { return "node:" + r.node.Name }
+
+// httpClient lazily builds and caches the per-node client honoring the TLS
+// verify mode, so Remote ops don't fall back to system CA on skip/pin (#5264).
+func (r *Remote) httpClient() (*http.Client, error) {
+	r.clientOnce.Do(func() {
+		proxyURL := ""
+		if r.node.OutboundTag != "" && r.egressResolver != nil {
+			proxyURL = r.egressResolver.NodeEgressProxyURL(r.node.Id)
+		}
+		r.client, r.clientErr = HTTPClientForNode(r.node, proxyURL)
+	})
+	return r.client, r.clientErr
+}
 
 func (r *Remote) baseURL() (string, error) {
 	addr, err := netsafe.NormalizeHost(r.node.Address)
@@ -129,7 +142,11 @@ func (r *Remote) do(ctx context.Context, method, path string, body any) (*envelo
 		req.Header.Set("Content-Type", contentType)
 	}
 
-	resp, err := remoteHTTPClient.Do(req)
+	client, err := r.httpClient()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", method, path, err)
 	}
@@ -490,6 +507,7 @@ func wireInbound(ib *model.Inbound) url.Values {
 	v := url.Values{}
 	v.Set("total", strconv.FormatInt(ib.Total, 10))
 	v.Set("remark", ib.Remark)
+	v.Set("subSortIndex", strconv.Itoa(ib.SubSortIndex))
 	v.Set("enable", strconv.FormatBool(ib.Enable))
 	v.Set("expiryTime", strconv.FormatInt(ib.ExpiryTime, 10))
 	v.Set("listen", ib.Listen)
