@@ -153,6 +153,25 @@ func (s *InboundService) upsertNodeBaseline(tx *gorm.DB, nodeID int, email strin
 	}).Create(&model.NodeClientTraffic{NodeId: nodeID, Email: email, Up: up, Down: down}).Error
 }
 
+// mergeActivationExpiry reconciles a node-reported client expiry with the value
+// already stored on the master. "Start after first connect" persists a negative
+// duration that each node converts to an absolute deadline (now+duration) the
+// first time the client connects there. The per-email client_traffics row is
+// shared across every node, so a node that has not yet seen a first connection
+// keeps reporting the negative duration — which must never reset a deadline
+// another node already activated.
+//
+// A node may legitimately move an already-activated deadline forward (traffic
+// reset / auto-renew extends it), so any positive node value is still adopted —
+// only an un-activated (<= 0) value is rejected once an absolute deadline
+// exists. Kept in lockstep with the SQL CASE in setRemoteTrafficLocked.
+func mergeActivationExpiry(existing, node int64) int64 {
+	if existing > 0 && node <= 0 {
+		return existing
+	}
+	return node
+}
+
 func (s *InboundService) SetRemoteTraffic(nodeID int, snap *runtime.TrafficSnapshot, dirty bool) (bool, error) {
 	var structuralChange bool
 	err := submitTrafficWrite(func() error {
@@ -268,13 +287,28 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 	// entirely — an email whose stats moved to (or always lived under) a
 	// sibling inbound still needs its baseline for the sibling's delta
 	// computation (#5202).
+	//
+	// Xray counts traffic per email, not per inbound, so a multi-attached
+	// client's shared counter is copied onto every inbound it's on. Fold each
+	// email to its per-field max (nodeEmailTotals) so divergent copies can't make
+	// the reset clamp re-add a lower sibling as fresh traffic (#5274).
 	snapEmailsAll := make(map[string]struct{})
+	nodeEmailTotals := make(map[string]nodeTrafficCounter)
 	for _, snapIb := range snap.Inbounds {
 		if snapIb == nil {
 			continue
 		}
 		for i := range snapIb.ClientStats {
-			snapEmailsAll[snapIb.ClientStats[i].Email] = struct{}{}
+			email := snapIb.ClientStats[i].Email
+			snapEmailsAll[email] = struct{}{}
+			cur := nodeEmailTotals[email]
+			if snapIb.ClientStats[i].Up > cur.Up {
+				cur.Up = snapIb.ClientStats[i].Up
+			}
+			if snapIb.ClientStats[i].Down > cur.Down {
+				cur.Down = snapIb.ClientStats[i].Down
+			}
+			nodeEmailTotals[email] = cur
 		}
 	}
 
@@ -500,14 +534,17 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 		for _, cs := range snapIb.ClientStats {
 			snapEmails[cs.Email] = struct{}{}
 
+			// Node-wide total, not this inbound's possibly-stale copy (#5274).
+			canon := nodeEmailTotals[cs.Email]
+
 			base, seen := nodeBaselines[cs.Email]
 			var deltaUp, deltaDown int64
 			if seen {
-				if deltaUp = cs.Up - base.Up; deltaUp < 0 {
-					deltaUp = cs.Up
+				if deltaUp = canon.Up - base.Up; deltaUp < 0 {
+					deltaUp = canon.Up
 				}
-				if deltaDown = cs.Down - base.Down; deltaDown < 0 {
-					deltaDown = cs.Down
+				if deltaDown = canon.Down - base.Down; deltaDown < 0 {
+					deltaDown = canon.Down
 				}
 			}
 
@@ -522,8 +559,8 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 					Total:      cs.Total,
 					ExpiryTime: cs.ExpiryTime,
 					Reset:      cs.Reset,
-					Up:         cs.Up,
-					Down:       cs.Down,
+					Up:         canon.Up,
+					Down:       canon.Down,
 					LastOnline: cs.LastOnline,
 				}
 				if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "email"}}, DoNothing: true}).
@@ -534,40 +571,49 @@ func (s *InboundService) setRemoteTrafficLocked(nodeID int, snap *runtime.Traffi
 				centralCSByEmail[cs.Email] = row
 				existingEmails[cs.Email] = struct{}{}
 				structuralChange = true
-				if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, cs.Up, cs.Down); err != nil {
+				if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, canon.Up, canon.Down); err != nil {
 					return false, err
 				}
-				nodeBaselines[cs.Email] = nodeTrafficCounter{Up: cs.Up, Down: cs.Down}
+				nodeBaselines[cs.Email] = nodeTrafficCounter{Up: canon.Up, Down: canon.Down}
 				continue
 			}
 
 			if existing := centralCSByEmail[cs.Email]; existing != nil &&
 				(existing.Enable != cs.Enable ||
 					existing.Total != cs.Total ||
-					existing.ExpiryTime != cs.ExpiryTime ||
+					existing.ExpiryTime != mergeActivationExpiry(existing.ExpiryTime, cs.ExpiryTime) ||
 					existing.Reset != cs.Reset) {
 				structuralChange = true
 			}
 
 			enableExpr := database.ClientTrafficEnableMergeExpr()
+			// expiry_time merge mirrors mergeActivationExpiry: a node that has not
+			// yet seen the client's first connection keeps reporting the negative
+			// "start after first connect" duration, which must never reset the
+			// absolute deadline another node already activated. A positive node
+			// value is still adopted (e.g. auto-renew moves the deadline forward).
+			// CAST(? AS BIGINT): in the `<= 0` comparison Postgres would otherwise
+			// infer int4 from the literal and overflow on real expiry values.
 			if err := tx.Exec(
 				fmt.Sprintf(
 					`UPDATE client_traffics
-					 SET up = up + ?, down = down + ?, enable = %s, total = ?, expiry_time = ?, reset = ?,
-					     last_online = %s
+					 SET up = up + ?, down = down + ?, enable = %s, total = ?,
+					     expiry_time = CASE WHEN expiry_time > 0 AND CAST(? AS BIGINT) <= 0 THEN expiry_time ELSE CAST(? AS BIGINT) END,
+					     reset = ?, last_online = %s
 					 WHERE email = ?`,
 					enableExpr,
 					database.GreatestExpr("last_online", "?"),
 				),
-				deltaUp, deltaDown, cs.Enable, cs.Total, cs.ExpiryTime, cs.Reset,
+				deltaUp, deltaDown, cs.Enable, cs.Total,
+				cs.ExpiryTime, cs.ExpiryTime, cs.Reset,
 				cs.LastOnline, cs.Email,
 			).Error; err != nil {
 				return false, err
 			}
-			if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, cs.Up, cs.Down); err != nil {
+			if err := s.upsertNodeBaseline(tx, nodeID, cs.Email, canon.Up, canon.Down); err != nil {
 				return false, err
 			}
-			nodeBaselines[cs.Email] = nodeTrafficCounter{Up: cs.Up, Down: cs.Down}
+			nodeBaselines[cs.Email] = nodeTrafficCounter{Up: canon.Up, Down: canon.Down}
 		}
 
 		for k, existing := range centralCS {
