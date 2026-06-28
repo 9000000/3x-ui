@@ -1084,6 +1084,12 @@
       "Client": {
         "description": "Client represents a client configuration for Xray inbounds with traffic limits and settings.",
         "properties": {
+          "allowedIPs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "auth": {
             "description": "Auth password (Hysteria)",
             "type": "string"
@@ -1120,12 +1126,24 @@
             "description": "Unique client identifier",
             "type": "string"
           },
+          "keepAlive": {
+            "type": "integer"
+          },
           "limitIp": {
             "description": "IP limit for this client",
             "type": "integer"
           },
           "password": {
             "description": "Client password",
+            "type": "string"
+          },
+          "preSharedKey": {
+            "type": "string"
+          },
+          "privateKey": {
+            "type": "string"
+          },
+          "publicKey": {
             "type": "string"
           },
           "reset": {
@@ -1201,6 +1219,9 @@
       },
       "ClientRecord": {
         "properties": {
+          "allowedIPs": {
+            "type": "string"
+          },
           "auth": {
             "type": "string"
           },
@@ -1228,10 +1249,22 @@
           "id": {
             "type": "integer"
           },
+          "keepAlive": {
+            "type": "integer"
+          },
           "limitIp": {
             "type": "integer"
           },
           "password": {
+            "type": "string"
+          },
+          "preSharedKey": {
+            "type": "string"
+          },
+          "privateKey": {
+            "type": "string"
+          },
+          "publicKey": {
             "type": "string"
           },
           "reset": {
@@ -1258,6 +1291,7 @@
           }
         },
         "required": [
+          "allowedIPs",
           "auth",
           "comment",
           "createdAt",
@@ -1267,8 +1301,12 @@
           "flow",
           "group",
           "id",
+          "keepAlive",
           "limitIp",
           "password",
+          "preSharedKey",
+          "privateKey",
+          "publicKey",
           "reset",
           "reverse",
           "security",
@@ -2707,6 +2745,43 @@
                       "tag": "in-443-tcp",
                       "tlsFlowCapable": true
                     }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/inbounds/allLinks": {
+      "get": {
+        "tags": [
+          "Inbounds"
+        ],
+        "summary": "Return every protocol URL (vless://, vmess://, trojan://, ss://, hysteria://, mtproto) across all inbounds and all of their clients. Links are rendered through the subscription engine, so the configured remark template (name-only display part) is applied per client — the same output the client info/QR pages use. Protocols without a URL form (socks, http, mixed, wireguard, dokodemo, tunnel) contribute nothing. Used by the panel’s \"Export all inbound links\" action.",
+        "operationId": "get_panel_api_inbounds_allLinks",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": [
+                    "vless://uuid@host:443?security=reality&...#Germany-alice",
+                    "vmess://eyJ2IjoyLC..."
                   ]
                 }
               }
@@ -6574,6 +6649,55 @@
                   "success": true,
                   "obj": {
                     "affected": 5
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/panel/api/clients/groups/resetTraffic": {
+      "post": {
+        "tags": [
+          "Clients"
+        ],
+        "summary": "Reset only the group-level traffic counter shown on the groups page. Snapshots the current up/down sum of the group's members as a baseline so the group total reads zero, while leaving each client's own counters (and their quotas) untouched. No Xray restart is triggered. Creates the client_groups row if the group exists only as a derived label.",
+        "operationId": "post_panel_api_clients_groups_resetTraffic",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "name": "customer-a"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "msg": {
+                      "type": "string"
+                    },
+                    "obj": {}
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "obj": {
+                    "name": "customer-a"
                   }
                 }
               }
