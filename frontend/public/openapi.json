@@ -84,6 +84,9 @@
           "ldapInboundTags": {
             "type": "string"
           },
+          "ldapInsecureSkipVerify": {
+            "type": "boolean"
+          },
           "ldapInvertFlag": {
             "type": "boolean"
           },
@@ -429,6 +432,7 @@
           "ldapFlagField",
           "ldapHost",
           "ldapInboundTags",
+          "ldapInsecureSkipVerify",
           "ldapInvertFlag",
           "ldapPassword",
           "ldapPort",
@@ -588,6 +592,9 @@
           },
           "ldapInboundTags": {
             "type": "string"
+          },
+          "ldapInsecureSkipVerify": {
+            "type": "boolean"
           },
           "ldapInvertFlag": {
             "type": "boolean"
@@ -941,6 +948,7 @@
           "ldapFlagField",
           "ldapHost",
           "ldapInboundTags",
+          "ldapInsecureSkipVerify",
           "ldapInvertFlag",
           "ldapPassword",
           "ldapPort",
@@ -1846,6 +1854,15 @@
           "tlsFlowCapable": {
             "example": true,
             "type": "boolean"
+          },
+          "wgDns": {
+            "type": "string"
+          },
+          "wgMtu": {
+            "type": "integer"
+          },
+          "wgPublicKey": {
+            "type": "string"
           }
         },
         "required": [
@@ -2743,7 +2760,10 @@
                       "remark": "VLESS-443",
                       "ssMethod": "",
                       "tag": "in-443-tcp",
-                      "tlsFlowCapable": true
+                      "tlsFlowCapable": true,
+                      "wgDns": "",
+                      "wgMtu": 0,
+                      "wgPublicKey": ""
                     }
                   ]
                 }

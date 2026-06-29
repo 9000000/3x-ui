@@ -16,6 +16,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "ldapFlagField": "",
     "ldapHost": "",
     "ldapInboundTags": "",
+    "ldapInsecureSkipVerify": false,
     "ldapInvertFlag": false,
     "ldapPassword": "",
     "ldapPort": 0,
@@ -118,6 +119,7 @@ export const EXAMPLES: Record<string, unknown> = {
     "ldapFlagField": "",
     "ldapHost": "",
     "ldapInboundTags": "",
+    "ldapInsecureSkipVerify": false,
     "ldapInvertFlag": false,
     "ldapPassword": "",
     "ldapPort": 0,
@@ -404,7 +406,10 @@ export const EXAMPLES: Record<string, unknown> = {
     "remark": "VLESS-443",
     "ssMethod": "",
     "tag": "in-443-tcp",
-    "tlsFlowCapable": true
+    "tlsFlowCapable": true,
+    "wgDns": "",
+    "wgMtu": 0,
+    "wgPublicKey": ""
   },
   "Msg": {
     "msg": "",

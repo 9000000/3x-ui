@@ -34,6 +34,7 @@ export const AllSettingSchema = z.object({
   ldapFlagField: z.string(),
   ldapHost: z.string(),
   ldapInboundTags: z.string(),
+  ldapInsecureSkipVerify: z.boolean(),
   ldapInvertFlag: z.boolean(),
   ldapPassword: z.string(),
   ldapPort: z.number().int().min(0).max(65535),
@@ -138,6 +139,7 @@ export const AllSettingViewSchema = z.object({
   ldapFlagField: z.string(),
   ldapHost: z.string(),
   ldapInboundTags: z.string(),
+  ldapInsecureSkipVerify: z.boolean(),
   ldapInvertFlag: z.boolean(),
   ldapPassword: z.string(),
   ldapPort: z.number().int().min(0).max(65535),
@@ -426,6 +428,9 @@ export const InboundOptionSchema = z.object({
   ssMethod: z.string(),
   tag: z.string(),
   tlsFlowCapable: z.boolean(),
+  wgDns: z.string().optional(),
+  wgMtu: z.number().int().optional(),
+  wgPublicKey: z.string().optional(),
 });
 export type InboundOption = z.infer<typeof InboundOptionSchema>;
 
