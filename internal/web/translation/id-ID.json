@@ -1755,6 +1755,7 @@
         "tagPlaceholder": "tag balancer unik",
         "selector": "Selector",
         "fallback": "Fallback",
+        "cycleTooltip": "Siklus: {path} → (kembali ke {start})",
         "expected": "Diharapkan",
         "expectedPlaceholder": "jumlah node optimal",
         "maxRtt": "Maks. RTT",
@@ -1764,7 +1765,12 @@
         "balancerDesc": "BalancerTag dan outboundTag tidak dapat digunakan secara bersamaan. Jika digunakan secara bersamaan, hanya outboundTag yang akan berfungsi.",
         "costMatch": "Pola tag",
         "costValue": "Bobot",
-        "costRegexp": "Pencocokan ekspresi reguler"
+        "costRegexp": "Pencocokan ekspresi reguler",
+        "balancerDeleteInUse": "Tidak dapat menghapus load balancer ini — digunakan sebagai fallback untuk: {names}",
+        "balancerFallbackCycle": "Tidak dapat mengatur load balancer ini sebagai fallback — akan menciptakan dependensi siklik.",
+        "balancerFallbackInfo": "Lalu lintas akan di-routing melalui: Load Balancer → Loopback → Server → Load Balancer tujuan → Koneksi keluar. Ini menambahkan hop tambahan melalui server, yang dapat menyebabkan sedikit penundaan.",
+        "fallbackBalancerHint": "Pilih load balancer lain sebagai fallback",
+        "reservedPrefix": "Awalan _bl_ dicadangkan untuk objek loopback internal load balancer"
       },
       "wireguard": {
         "secretKey": "Kunci Rahasia",
@@ -1858,14 +1864,17 @@
         "dnsPresetFamily": "Keluarga",
         "clearAll": "Hapus Semua",
         "clearAllTitle": "Hapus semua server DNS?",
-        "clearAllConfirm": "Ini akan menghapus semua server DNS dari daftar. Tidak dapat dibatalkan."
+        "clearAllConfirm": "Ini akan menghapus semua server DNS dari daftar. Tidak dapat dibatalkan.",
+        "dnsLeakWarning": "DNS dapat bocor lewat localhost, UDP/TCP polos, DoH/DoQ mode lokal, kueri fallback, atau EDNS client IP. Gunakan DoH yang dirutekan, pin resolver di hosts, dan nonaktifkan fallback saat privasi penting."
       },
       "fakedns": {
         "add": "Tambahkan DNS Palsu",
         "edit": "Edit DNS Palsu",
         "ipPool": "Subnet Kumpulan IP",
         "poolSize": "Ukuran Kolam"
-      }
+      },
+      "defaultOutbound": "Outbound default",
+      "defaultOutboundDesc": "Lalu lintas tanpa aturan routing memakai outbound ini (yang pertama dalam daftar)."
     },
     "hosts": {
       "addHost": "Tambah Host",
@@ -1921,7 +1930,8 @@
         "tags": "Tag",
         "nodeGuids": "Node",
         "excludeFromSubTypes": "Kecualikan dari format",
-        "verifyPeerCertByName": "Verifikasi sertifikat peer berdasarkan nama"
+        "verifyPeerCertByName": "Verifikasi sertifikat peer berdasarkan nama",
+        "inheritAddress": "Warisi alamat"
       },
       "hints": {
         "address": "Biarkan kosong untuk mewarisi alamat inbound itu sendiri.",

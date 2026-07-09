@@ -1755,6 +1755,7 @@
         "tagPlaceholder": "唯一均衡器标签",
         "selector": "选择器",
         "fallback": "Fallback",
+        "cycleTooltip": "循环: {path} → (回到 {start})",
         "expected": "期望",
         "expectedPlaceholder": "最佳节点数",
         "maxRtt": "最大 RTT",
@@ -1764,7 +1765,12 @@
         "balancerDesc": "无法同时使用 balancerTag 和 outboundTag。如果同时使用，则只有 outboundTag 会生效。",
         "costMatch": "标签匹配模式",
         "costValue": "权重",
-        "costRegexp": "正则表达式匹配"
+        "costRegexp": "正则表达式匹配",
+        "balancerDeleteInUse": "无法删除此负载均衡器 — 它被用作以下负载均衡器的备用：{names}",
+        "balancerFallbackCycle": "无法将此负载均衡器设置为备用 — 这会创建循环依赖。",
+        "balancerFallbackInfo": "流量将通过以下路径路由：负载均衡器 → Loopback → 服务器 → 目标负载均衡器 → 出站连接。这会增加一个经过服务器的额外跳转，可能会引入轻微延迟。",
+        "fallbackBalancerHint": "选择另一个负载均衡器作为备用",
+        "reservedPrefix": "_bl_ 前缀保留给内部负载均衡器回环对象"
       },
       "wireguard": {
         "secretKey": "密钥",
@@ -1858,14 +1864,17 @@
         "dnsPresetFamily": "家庭",
         "clearAll": "删除全部",
         "clearAllTitle": "删除所有 DNS 服务器？",
-        "clearAllConfirm": "此操作将从列表中删除所有 DNS 服务器，且无法撤销。"
+        "clearAllConfirm": "此操作将从列表中删除所有 DNS 服务器，且无法撤销。",
+        "dnsLeakWarning": "DNS 可能通过 localhost、明文 UDP/TCP、本地模式 DoH/DoQ、回退查询或 EDNS client IP 泄漏。重视隐私时请使用经路由的 DoH、在 hosts 中固定解析器，并禁用回退。"
       },
       "fakedns": {
         "add": "添加假 DNS",
         "edit": "编辑假 DNS",
         "ipPool": "IP 池子网",
         "poolSize": "池大小"
-      }
+      },
+      "defaultOutbound": "默认出站",
+      "defaultOutboundDesc": "未匹配任何路由规则的流量走此出站（列表中的第一个出站）。"
     },
     "hosts": {
       "addHost": "添加主机",
@@ -1921,7 +1930,8 @@
         "shuffleHost": "随机打乱 Host",
         "tags": "标签",
         "nodeGuids": "节点",
-        "excludeFromSubTypes": "从格式中排除"
+        "excludeFromSubTypes": "从格式中排除",
+        "inheritAddress": "继承地址"
       },
       "hints": {
         "address": "留空则继承入站自身的地址。",

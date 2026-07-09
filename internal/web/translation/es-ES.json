@@ -1755,6 +1755,7 @@
         "tagPlaceholder": "etiqueta única de balanceador",
         "selector": "Selector",
         "fallback": "Fallback",
+        "cycleTooltip": "Ciclo: {path} → (volver a {start})",
         "expected": "Esperado",
         "expectedPlaceholder": "número óptimo de nodos",
         "maxRtt": "Máx. RTT",
@@ -1764,7 +1765,12 @@
         "balancerDesc": "No es posible utilizar balancerTag y outboundTag al mismo tiempo. Si se utilizan al mismo tiempo, sólo funcionará outboundTag.",
         "costMatch": "Patrón de etiqueta",
         "costValue": "Peso",
-        "costRegexp": "Coincidencia por expresión regular"
+        "costRegexp": "Coincidencia por expresión regular",
+        "balancerDeleteInUse": "No se puede eliminar este balanceador — se usa como respaldo para: {names}",
+        "balancerFallbackCycle": "No se puede establecer este balanceador como respaldo — crearía una dependencia circular.",
+        "balancerFallbackInfo": "El tráfico se enrutará a través de: Balanceador → Loopback → Servidor → Balanceador destino → Conexión saliente. Esto agrega un salto adicional a través del servidor, lo que puede introducir ligeros retrasos.",
+        "fallbackBalancerHint": "Seleccione otro balanceador como respaldo",
+        "reservedPrefix": "El prefijo _bl_ está reservado para objetos loopback internos del balanceador"
       },
       "wireguard": {
         "secretKey": "Llave secreta",
@@ -1858,14 +1864,17 @@
         "dnsPresetFamily": "Familiar",
         "clearAll": "Eliminar todos",
         "clearAllTitle": "¿Eliminar todos los servidores DNS?",
-        "clearAllConfirm": "Esto eliminará todos los servidores DNS de la lista. No se puede deshacer."
+        "clearAllConfirm": "Esto eliminará todos los servidores DNS de la lista. No se puede deshacer.",
+        "dnsLeakWarning": "El DNS puede filtrarse por localhost, UDP/TCP sin cifrar, DoH/DoQ en modo local, consultas de respaldo o EDNS client IP. Usa DoH enrutado, fija los resolutores en hosts y desactiva el respaldo cuando la privacidad importe."
       },
       "fakedns": {
         "add": "Agregar DNS Falso",
         "edit": "Editar DNS Falso",
         "ipPool": "Subred del grupo de IP",
         "poolSize": "Tamaño del grupo"
-      }
+      },
+      "defaultOutbound": "Salida predeterminada",
+      "defaultOutboundDesc": "El tráfico que no coincide con ninguna regla de enrutamiento usa esta salida (la primera de la lista)."
     },
     "hosts": {
       "addHost": "Agregar host",
@@ -1894,7 +1903,7 @@
       "fields": {
         "remark": "Notas",
         "serverDescription": "Descripción",
-        "inbound": "Inbound",
+        "inbound": "Inbounds",
         "address": "Dirección",
         "port": "Puerto",
         "endpoint": "Punto final",
@@ -1921,7 +1930,8 @@
         "shuffleHost": "Barajar host",
         "tags": "Etiquetas",
         "nodeGuids": "Nodos",
-        "excludeFromSubTypes": "Excluir de formatos"
+        "excludeFromSubTypes": "Excluir de formatos",
+        "inheritAddress": "Hereda dirección"
       },
       "hints": {
         "address": "Déjalo en blanco para heredar la dirección propia del inbound.",

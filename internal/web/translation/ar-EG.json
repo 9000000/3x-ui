@@ -1755,6 +1755,7 @@
         "tagPlaceholder": "وسم موازن فريد",
         "selector": "المحدد",
         "fallback": "Fallback",
+        "cycleTooltip": "حلقة: {path} → (العودة إلى {start})",
         "expected": "المتوقع",
         "expectedPlaceholder": "العدد الأمثل للعقد",
         "maxRtt": "أقصى RTT",
@@ -1764,7 +1765,12 @@
         "balancerDesc": "ماينفعش تستخدم balancerTag و outboundTag مع بعض. لو اتستخدموا مع بعض، outboundTag هو اللي هيشتغل.",
         "costMatch": "نمط الوسم",
         "costValue": "الوزن",
-        "costRegexp": "مطابقة تعبير نمطي"
+        "costRegexp": "مطابقة تعبير نمطي",
+        "balancerDeleteInUse": "لا يمكن حذف هذا الموزان — يتم استخدامه كبديل لـ: {names}",
+        "balancerFallbackCycle": "لا يمكن تعيين هذا الموزان كبديل — سيؤدي ذلك إلى إنشاء تبعية دائرية.",
+        "balancerFallbackInfo": "سيتم توجيه حركة المرور عبر: الموزان → Loopback → الخادم → الموزان المستهدف → الاتصال الخارجي. سيؤدي هذا إلى إضافة قفزة إضافية عبر الخادم، مما قد يسبب تأخيرات طفيفة.",
+        "fallbackBalancerHint": "اختر موزان أحمال آخر كبديل",
+        "reservedPrefix": "البادئة _bl_ محجوزة لكائنات loopback الداخلية للموازنات"
       },
       "wireguard": {
         "secretKey": "المفتاح السري",
@@ -1858,14 +1864,17 @@
         "dnsPresetFamily": "العائلي",
         "clearAll": "حذف الكل",
         "clearAllTitle": "حذف جميع خوادم DNS؟",
-        "clearAllConfirm": "سيؤدي هذا إلى إزالة جميع خوادم DNS من القائمة. لا يمكن التراجع عن هذا الإجراء."
+        "clearAllConfirm": "سيؤدي هذا إلى إزالة جميع خوادم DNS من القائمة. لا يمكن التراجع عن هذا الإجراء.",
+        "dnsLeakWarning": "قد يتسرب DNS عبر localhost أو UDP/TCP غير المشفر أو وضع DoH/DoQ المحلي أو استعلامات الرجوع أو EDNS client IP. استخدم DoH عبر التوجيه، وثبت أسماء المحللات في hosts، وعطل الرجوع عندما تكون الخصوصية مهمة."
       },
       "fakedns": {
         "add": "أضف Fake DNS",
         "edit": "عدل Fake DNS",
         "ipPool": "نطاق IP Pool",
         "poolSize": "حجم المجموعة"
-      }
+      },
+      "defaultOutbound": "الصادر الافتراضي",
+      "defaultOutboundDesc": "الحركة التي لا تطابق أي قاعدة توجيه تستخدم هذا الصادر (الأول في القائمة)."
     },
     "hosts": {
       "addHost": "إضافة مضيف",
@@ -1894,7 +1903,7 @@
       "fields": {
         "remark": "ملاحظة",
         "serverDescription": "الوصف",
-        "inbound": "الوارد",
+        "inbound": "الواردات",
         "address": "العنوان",
         "port": "المنفذ",
         "endpoint": "النهاية",
@@ -1921,7 +1930,8 @@
         "tags": "وسوم",
         "nodeGuids": "النودز",
         "excludeFromSubTypes": "استبعاد من الصيغ",
-        "verifyPeerCertByName": "التحقق من شهادة النظير بالاسم"
+        "verifyPeerCertByName": "التحقق من شهادة النظير بالاسم",
+        "inheritAddress": "يرث العنوان"
       },
       "hints": {
         "address": "اتركه فارغاً ليرث عنوان الوارد نفسه.",
