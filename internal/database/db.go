@@ -56,8 +56,8 @@ const (
 	defaultPassword = "admin"
 )
 
-func initModels() error {
-	models := []any{
+func allModels() []any {
+	return []any{
 		&model.User{},
 		&model.Inbound{},
 		&model.OutboundTraffics{},
@@ -78,18 +78,25 @@ func initModels() error {
 		&model.ClientGlobalTraffic{},
 		&model.OutboundSubscription{},
 	}
+}
+
+func initModels() error {
+	models := allModels()
 	for _, mdl := range models {
 		if IsPostgres() && postgresModelSettled(mdl) {
 			continue
 		}
 		if err := db.AutoMigrate(mdl); err != nil {
-			if isIgnorableDuplicateColumnErr(err, mdl) {
+			if isIgnorableDuplicateColumnErr(db, err, mdl) {
 				log.Printf("Ignoring duplicate column during auto migration for %T: %v", mdl, err)
 				continue
 			}
 			log.Printf("Error auto migrating model: %v", err)
 			return err
 		}
+	}
+	if err := dropLegacyInboundPortUnique(); err != nil {
+		return err
 	}
 	if err := migrateHostVerifyPeerCertByNameColumn(); err != nil {
 		return err
@@ -116,6 +123,12 @@ func initModels() error {
 		return err
 	}
 	if err := migrateLegacySocksInboundsToMixed(); err != nil {
+		return err
+	}
+	if err := migrateShadowsocksRemovedCiphers(); err != nil {
+		return err
+	}
+	if err := migrateVmessRemovedSecurities(); err != nil {
 		return err
 	}
 	if IsPostgres() {
@@ -158,6 +171,121 @@ func dropLegacyForeignKeys() error {
 		return err
 	}
 	return nil
+}
+
+type sqliteIndexListRow struct {
+	Name   string `gorm:"column:name"`
+	Unique int    `gorm:"column:unique"`
+	Origin string `gorm:"column:origin"`
+}
+
+func sqliteUniquePortIndexes() (autoIndexes, explicitIndexes []string, err error) {
+	var list []sqliteIndexListRow
+	if err = db.Raw(`PRAGMA index_list('inbounds')`).Scan(&list).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, idx := range list {
+		if idx.Unique != 1 {
+			continue
+		}
+		var cols []struct {
+			Name string `gorm:"column:name"`
+		}
+		if err = db.Raw(`PRAGMA index_info("` + idx.Name + `")`).Scan(&cols).Error; err != nil {
+			return nil, nil, err
+		}
+		if len(cols) != 1 || cols[0].Name != "port" {
+			continue
+		}
+		if idx.Origin == "c" {
+			explicitIndexes = append(explicitIndexes, idx.Name)
+		} else {
+			autoIndexes = append(autoIndexes, idx.Name)
+		}
+	}
+	return autoIndexes, explicitIndexes, nil
+}
+
+// dropLegacyInboundPortUnique removes the pre-multi-node UNIQUE on inbounds.port,
+// which AutoMigrate never drops and which blocks cross-node port reuse on old SQLite DBs.
+func dropLegacyInboundPortUnique() error {
+	if IsPostgres() {
+		return nil
+	}
+	autoIndexes, explicitIndexes, err := sqliteUniquePortIndexes()
+	if err != nil {
+		return err
+	}
+	for _, name := range explicitIndexes {
+		if err := db.Exec(`DROP INDEX IF EXISTS "` + name + `"`).Error; err != nil {
+			return err
+		}
+	}
+	if len(autoIndexes) == 0 {
+		return nil
+	}
+	log.Printf("Rebuilding inbounds table to drop the legacy UNIQUE constraint on port")
+	return rebuildInboundsWithoutInlineUniquePort()
+}
+
+func sqliteTableColumns(tx *gorm.DB, table string) ([]string, error) {
+	var rows []struct {
+		Name string `gorm:"column:name"`
+	}
+	if err := tx.Raw(`PRAGMA table_info("` + table + `")`).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	cols := make([]string, 0, len(rows))
+	for _, r := range rows {
+		cols = append(cols, r.Name)
+	}
+	return cols, nil
+}
+
+func rebuildInboundsWithoutInlineUniquePort() error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		var list []sqliteIndexListRow
+		if err := tx.Raw(`PRAGMA index_list('inbounds')`).Scan(&list).Error; err != nil {
+			return err
+		}
+		for _, idx := range list {
+			if idx.Origin != "c" {
+				continue
+			}
+			if err := tx.Exec(`DROP INDEX IF EXISTS "` + idx.Name + `"`).Error; err != nil {
+				return err
+			}
+		}
+		if err := tx.Exec(`ALTER TABLE inbounds RENAME TO inbounds_legacy_rebuild`).Error; err != nil {
+			return err
+		}
+		if err := tx.Migrator().CreateTable(&model.Inbound{}); err != nil {
+			return err
+		}
+		newCols, err := sqliteTableColumns(tx, "inbounds")
+		if err != nil {
+			return err
+		}
+		oldCols, err := sqliteTableColumns(tx, "inbounds_legacy_rebuild")
+		if err != nil {
+			return err
+		}
+		oldSet := make(map[string]struct{}, len(oldCols))
+		for _, c := range oldCols {
+			oldSet[c] = struct{}{}
+		}
+		shared := make([]string, 0, len(newCols))
+		for _, c := range newCols {
+			if _, ok := oldSet[c]; ok {
+				shared = append(shared, `"`+c+`"`)
+			}
+		}
+		colList := strings.Join(shared, ", ")
+		if err := tx.Exec(`INSERT INTO inbounds (` + colList + `) SELECT ` + colList + ` FROM inbounds_legacy_rebuild`).Error; err != nil {
+			return err
+		}
+		return tx.Exec(`DROP TABLE inbounds_legacy_rebuild`).Error
+	})
 }
 
 func migrateHostVerifyPeerCertByNameColumn() error {
@@ -636,6 +764,125 @@ func migrateLegacySocksInboundsToMixed() error {
 	return nil
 }
 
+// migrateShadowsocksRemovedCiphers rewrites shadowsocks inbounds still using
+// the "none"/"plain" ciphers that xray-core v26.7.11 removed; one such row
+// makes the whole generated config unbuildable and keeps xray from starting.
+func migrateShadowsocksRemovedCiphers() error {
+	var inbounds []model.Inbound
+	if err := db.Where("protocol = ?", model.Shadowsocks).Find(&inbounds).Error; err != nil {
+		return err
+	}
+	migrated := int64(0)
+	for _, inbound := range inbounds {
+		if strings.TrimSpace(inbound.Settings) == "" {
+			continue
+		}
+		var settings map[string]any
+		if err := json.Unmarshal([]byte(inbound.Settings), &settings); err != nil {
+			continue
+		}
+		changed := false
+		if method, _ := settings["method"].(string); method != "" {
+			if replacement, removed := model.ReplaceRemovedShadowsocksCipher(method); removed {
+				settings["method"] = replacement
+				changed = true
+			}
+		}
+		if clients, ok := settings["clients"].([]any); ok {
+			for i := range clients {
+				cm, ok := clients[i].(map[string]any)
+				if !ok {
+					continue
+				}
+				method, _ := cm["method"].(string)
+				if replacement, removed := model.ReplaceRemovedShadowsocksCipher(method); removed {
+					cm["method"] = replacement
+					clients[i] = cm
+					changed = true
+				}
+			}
+		}
+		if !changed {
+			continue
+		}
+		newSettings, err := json.MarshalIndent(settings, "", "  ")
+		if err != nil {
+			log.Printf("migrateShadowsocksRemovedCiphers: skip inbound %d (marshal failed): %v", inbound.Id, err)
+			continue
+		}
+		if err := db.Model(&model.Inbound{}).Where("id = ?", inbound.Id).
+			Update("settings", string(newSettings)).Error; err != nil {
+			return err
+		}
+		migrated++
+	}
+	if migrated > 0 {
+		log.Printf("Rewrote removed shadowsocks cipher on %d inbound(s)", migrated)
+	}
+	return nil
+}
+
+// migrateVmessRemovedSecurities rewrites the vmess "none"/"zero" security
+// values that xray-core v26.7.11 removed to "auto" (what the core now treats
+// them as), on both the clients column and each vmess inbound's settings.
+func migrateVmessRemovedSecurities() error {
+	res := db.Exec("UPDATE clients SET security = 'auto' WHERE security IN ('none', 'zero')")
+	if res.Error != nil {
+		log.Printf("Error migrating removed vmess security values on clients: %v", res.Error)
+		return res.Error
+	}
+	if res.RowsAffected > 0 {
+		log.Printf("Migrated %d client(s) off removed vmess security values", res.RowsAffected)
+	}
+	var inbounds []model.Inbound
+	if err := db.Where("protocol = ?", model.VMESS).Find(&inbounds).Error; err != nil {
+		return err
+	}
+	migrated := int64(0)
+	for _, inbound := range inbounds {
+		if strings.TrimSpace(inbound.Settings) == "" {
+			continue
+		}
+		var settings map[string]any
+		if err := json.Unmarshal([]byte(inbound.Settings), &settings); err != nil {
+			continue
+		}
+		clients, ok := settings["clients"].([]any)
+		if !ok {
+			continue
+		}
+		changed := false
+		for i := range clients {
+			cm, ok := clients[i].(map[string]any)
+			if !ok {
+				continue
+			}
+			if security, _ := cm["security"].(string); security == "none" || security == "zero" {
+				cm["security"] = "auto"
+				clients[i] = cm
+				changed = true
+			}
+		}
+		if !changed {
+			continue
+		}
+		newSettings, err := json.MarshalIndent(settings, "", "  ")
+		if err != nil {
+			log.Printf("migrateVmessRemovedSecurities: skip inbound %d (marshal failed): %v", inbound.Id, err)
+			continue
+		}
+		if err := db.Model(&model.Inbound{}).Where("id = ?", inbound.Id).
+			Update("settings", string(newSettings)).Error; err != nil {
+			return err
+		}
+		migrated++
+	}
+	if migrated > 0 {
+		log.Printf("Rewrote removed vmess security values on %d inbound(s)", migrated)
+	}
+	return nil
+}
+
 // normalizeInboundSubSortIndex lifts sub_sort_index values below the 1-based
 // minimum (rows written by builds that defaulted the column to 0, or by nodes
 // predating the field) so they cannot sort ahead of explicitly ranked inbounds.
@@ -756,7 +1003,7 @@ func dedupeInboundSettingsClients() error {
 	return nil
 }
 
-func isIgnorableDuplicateColumnErr(err error, mdl any) bool {
+func isIgnorableDuplicateColumnErr(gdb *gorm.DB, err error, mdl any) bool {
 	if err == nil {
 		return false
 	}
@@ -766,14 +1013,14 @@ func isIgnorableDuplicateColumnErr(err error, mdl any) bool {
 	if _, after, ok := strings.Cut(errMsg, sqlitePrefix); ok {
 		col := strings.TrimSpace(after)
 		col = strings.Trim(col, "`\"[]")
-		return col != "" && db != nil && db.Migrator().HasColumn(mdl, col)
+		return col != "" && gdb != nil && gdb.Migrator().HasColumn(mdl, col)
 	}
 	if strings.Contains(errMsg, "already exists") && strings.Contains(errMsg, "column ") {
 		if _, after, ok := strings.Cut(errMsg, "column \""); ok {
 			rest := after
 			if e := strings.Index(rest, "\""); e > 0 {
 				col := rest[:e]
-				return col != "" && db != nil && db.Migrator().HasColumn(mdl, col)
+				return col != "" && gdb != nil && gdb.Migrator().HasColumn(mdl, col)
 			}
 		}
 	}
@@ -810,7 +1057,7 @@ func runSeeders(isUsersEmpty bool) error {
 	}
 
 	if empty && isUsersEmpty {
-		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix", "InboundClientSubIdFix", "FreedomFinalRulesReverseFix", "ApiTokensHash", "LegacyProxySettingsCleanup", "WireguardPeersToClients", "MtprotoSecretsToClients"}
+		seeders := []string{"UserPasswordHash", "ClientsTable", "InboundClientsArrayFix", "InboundClientTgIdFix", "InboundClientSubIdFix", "FreedomFinalRulesReverseFix", "ApiTokensHash", "LegacyProxySettingsCleanup", "WireguardPeersToClients", "MtprotoSecretsToClients", "NodeInboundsAdopted"}
 		for _, name := range seeders {
 			if err := db.Create(&model.HistoryOfSeeders{SeederName: name}).Error; err != nil {
 				return err
@@ -903,6 +1150,12 @@ func runSeeders(isUsersEmpty bool) error {
 		}
 	}
 
+	if !slices.Contains(seedersHistory, "NodeInboundsAdopted") {
+		if err := seedNodeInboundsAdopted(); err != nil {
+			return err
+		}
+	}
+
 	if err := seedHostsFromExternalProxy(); err != nil {
 		return err
 	}
@@ -935,6 +1188,17 @@ func runSeeders(isUsersEmpty bool) error {
 	// Idempotent, not seeder-gated: bad values can re-enter via a restored
 	// backup, so re-check on every start.
 	return normalizeSettingPaths()
+}
+
+// seedNodeInboundsAdopted keeps the pre-existing reconcile behavior for nodes
+// that were already syncing before the inbounds_adopted_at gate was introduced.
+func seedNodeInboundsAdopted() error {
+	if err := db.Model(&model.Node{}).
+		Where("inbounds_adopted_at = 0").
+		Update("inbounds_adopted_at", time.Now().Unix()).Error; err != nil {
+		return err
+	}
+	return db.Create(&model.HistoryOfSeeders{SeederName: "NodeInboundsAdopted"}).Error
 }
 
 func seedHostGroupIds() error {
