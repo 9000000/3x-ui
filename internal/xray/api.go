@@ -176,6 +176,8 @@ func (x *XrayAPI) DelInbound(tag string) error {
 // startup — notably v26.7.11's refusal of unencrypted vless/trojan outbounds
 // whose server address is a public IP or domain.
 func ValidateOutboundConfig(outbound []byte) error {
+	ensureXrayAssetLocation()
+
 	detour := new(conf.OutboundDetourConfig)
 	if err := json.Unmarshal(outbound, detour); err != nil {
 		return err
@@ -190,6 +192,8 @@ func (x *XrayAPI) AddOutbound(outbound []byte) error {
 		return common.NewError("xray HandlerServiceClient is not initialized")
 	}
 	client := *x.HandlerServiceClient
+
+	ensureXrayAssetLocation()
 
 	conf := new(conf.OutboundDetourConfig)
 	if err := json.Unmarshal(outbound, conf); err != nil {
@@ -637,6 +641,11 @@ func (x *XrayAPI) AddUser(Protocol string, inboundTag string, user map[string]an
 
 // RemoveUser removes a user from an inbound in the Xray core by email.
 func (x *XrayAPI) RemoveUser(inboundTag, email string) error {
+	if x.HandlerServiceClient == nil {
+		return common.NewError("xray HandlerServiceClient is not initialized")
+	}
+	client := *x.HandlerServiceClient
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -646,7 +655,7 @@ func (x *XrayAPI) RemoveUser(inboundTag, email string) error {
 		Operation: serial.ToTypedMessage(op),
 	}
 
-	_, err := (*x.HandlerServiceClient).AlterInbound(ctx, req)
+	_, err := client.AlterInbound(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to remove user: %w", err)
 	}
