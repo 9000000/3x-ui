@@ -1417,6 +1417,7 @@ func (s *ClientService) BulkCreate(inboundSvc *InboundService, payloads []Client
 		}
 	}
 
+	createdEmails := make([]string, 0, len(prep))
 	for idx := range prep {
 		if failed[idx] {
 			skip(prep[idx].client.Email, reason[idx])
@@ -1426,8 +1427,12 @@ func (s *ClientService) BulkCreate(inboundSvc *InboundService, payloads []Client
 			skip(prep[idx].client.Email, err.Error())
 			continue
 		}
+		createdEmails = append(createdEmails, prep[idx].client.Email)
 		result.Created++
 	}
+	// A re-created email is a live identity again: a delete tombstone left
+	// standing makes the next node merge prune the new client's inbound links.
+	withdrawClientTombstones(createdEmails...)
 	return result, needRestart, nil
 }
 
