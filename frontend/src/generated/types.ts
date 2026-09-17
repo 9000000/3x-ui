@@ -3,16 +3,26 @@ export type GeoKind = string;
 export type OnlineAPISupport = number;
 export type ProcessState = string;
 export type Protocol = string;
-export type SubLinkProvider = unknown;
 export type staticEgressResolver = string;
 export type trafficLocalApplyAction = number;
 export type transportBits = number;
 
 export interface AllSetting {
   datepicker: string;
+  discordAdminIds: string;
+  discordBotBackup: boolean;
+  discordBotEnable: boolean;
+  discordBotToken: string;
+  discordChannelId: string;
+  discordCpu: number;
+  discordEnabledEvents: string;
+  discordLang: string;
+  discordMemory: number;
+  discordRunTime: string;
   expireDiff: number;
   externalTrafficInformEnable: boolean;
   externalTrafficInformURI: string;
+  happLinkEnable: boolean;
   ipLimitAllowlist: string;
   ldapAutoCreate: boolean;
   ldapAutoDelete: boolean;
@@ -38,6 +48,7 @@ export interface AllSetting {
   outboundDownThreshold: number;
   pageSize: number;
   panelOutbound: string;
+  realityScanCandidates: string;
   remarkTemplate: string;
   restartXrayOnClientDisable: boolean;
   sessionMaxAge: number;
@@ -54,6 +65,7 @@ export interface AllSetting {
   smtpTo: string;
   smtpUsername: string;
   subAnnounce: string;
+  subCalendarExpireInclusive: boolean;
   subCertFile: string;
   subClashAutoDetect: boolean;
   subClashEnable: boolean;
@@ -67,17 +79,42 @@ export interface AllSetting {
   subEnableRouting: boolean;
   subEncrypt: boolean;
   subExpiredTemplate: string;
+  subHappAlwaysHwid: boolean;
+  subHappAutoConnect: boolean;
+  subHappAutoConnectType: string;
+  subHappAutoDetect: boolean;
+  subHappColorProfile: string;
+  subHappExcludeApns: boolean;
+  subHappExcludeRoutes: string;
+  subHappFallbackUrl: string;
+  subHappNewUrl: string;
+  subHappNoLimit: boolean;
+  subHappNotificationExpire: boolean;
+  subHappPerAppList: string;
+  subHappPerAppMode: string;
+  subHappPingType: string;
+  subHappProviderId: string;
+  subHappSubExpire: boolean;
+  subHappSubExpireButtonLink: string;
+  subHappSubInfoButtonLink: string;
+  subHappSubInfoButtonText: string;
+  subHappSubInfoColor: string;
+  subHappSubInfoText: string;
+  subHappTunMode: string;
+  subHappTunType: string;
   subHideSettings: boolean;
   subIncyEnableRouting: boolean;
   subIncyRoutingRules: string;
   subInfoNodeEnable: boolean;
   subJsonAlwaysArray: boolean;
   subJsonAutoDetect: boolean;
+  subJsonDns: string;
   subJsonEnable: boolean;
   subJsonFinalMask: string;
   subJsonMux: string;
   subJsonObservatory: string;
   subJsonPath: string;
+  subJsonRoutingRules: string;
   subJsonRules: string;
   subJsonURI: string;
   subJsonUserAgentRegex: string;
@@ -85,6 +122,7 @@ export interface AllSetting {
   subListen: string;
   subPath: string;
   subPort: number;
+  subProfileMode: string;
   subProfileUrl: string;
   subRoutingRules: string;
   subShowIdentityOnAllLinks: boolean;
@@ -121,10 +159,22 @@ export interface AllSetting {
 
 export interface AllSettingView {
   datepicker: string;
+  discordAdminIds: string;
+  discordBotBackup: boolean;
+  discordBotEnable: boolean;
+  discordBotToken: string;
+  discordChannelId: string;
+  discordCpu: number;
+  discordEnabledEvents: string;
+  discordLang: string;
+  discordMemory: number;
+  discordRunTime: string;
   expireDiff: number;
   externalTrafficInformEnable: boolean;
   externalTrafficInformURI: string;
+  happLinkEnable: boolean;
   hasApiToken: boolean;
+  hasDiscordBotToken: boolean;
   hasLdapPassword: boolean;
   hasNordSecret: boolean;
   hasSmtpPassword: boolean;
@@ -156,6 +206,7 @@ export interface AllSettingView {
   outboundDownThreshold: number;
   pageSize: number;
   panelOutbound: string;
+  realityScanCandidates: string;
   remarkTemplate: string;
   restartXrayOnClientDisable: boolean;
   sessionMaxAge: number;
@@ -172,6 +223,7 @@ export interface AllSettingView {
   smtpTo: string;
   smtpUsername: string;
   subAnnounce: string;
+  subCalendarExpireInclusive: boolean;
   subCertFile: string;
   subClashAutoDetect: boolean;
   subClashEnable: boolean;
@@ -185,17 +237,42 @@ export interface AllSettingView {
   subEnableRouting: boolean;
   subEncrypt: boolean;
   subExpiredTemplate: string;
+  subHappAlwaysHwid: boolean;
+  subHappAutoConnect: boolean;
+  subHappAutoConnectType: string;
+  subHappAutoDetect: boolean;
+  subHappColorProfile: string;
+  subHappExcludeApns: boolean;
+  subHappExcludeRoutes: string;
+  subHappFallbackUrl: string;
+  subHappNewUrl: string;
+  subHappNoLimit: boolean;
+  subHappNotificationExpire: boolean;
+  subHappPerAppList: string;
+  subHappPerAppMode: string;
+  subHappPingType: string;
+  subHappProviderId: string;
+  subHappSubExpire: boolean;
+  subHappSubExpireButtonLink: string;
+  subHappSubInfoButtonLink: string;
+  subHappSubInfoButtonText: string;
+  subHappSubInfoColor: string;
+  subHappSubInfoText: string;
+  subHappTunMode: string;
+  subHappTunType: string;
   subHideSettings: boolean;
   subIncyEnableRouting: boolean;
   subIncyRoutingRules: string;
   subInfoNodeEnable: boolean;
   subJsonAlwaysArray: boolean;
   subJsonAutoDetect: boolean;
+  subJsonDns: string;
   subJsonEnable: boolean;
   subJsonFinalMask: string;
   subJsonMux: string;
   subJsonObservatory: string;
   subJsonPath: string;
+  subJsonRoutingRules: string;
   subJsonRules: string;
   subJsonURI: string;
   subJsonUserAgentRegex: string;
@@ -203,6 +280,7 @@ export interface AllSettingView {
   subListen: string;
   subPath: string;
   subPort: number;
+  subProfileMode: string;
   subProfileUrl: string;
   subRoutingRules: string;
   subShowIdentityOnAllLinks: boolean;
@@ -277,7 +355,7 @@ export interface Client {
   forwardedPorts?: string;
   group?: string;
   id?: string;
-  keepAlive?: number;
+  keepAlive?: number | null;
   limitIp: number;
   password?: string;
   preSharedKey?: string;
@@ -446,6 +524,10 @@ export interface GeodataTokenIssue {
   token: string;
 }
 
+export interface HappLinkResult {
+  encryptedLink: string;
+}
+
 export interface HistoryOfSeeders {
   id: number;
   seederName: string;
@@ -455,6 +537,7 @@ export interface Host {
   address: string;
   allowInsecure: boolean;
   alpn: string[];
+  cipherSuites: string;
   createdAt: number;
   echConfigList: string;
   excludeFromSubTypes: string[];
@@ -491,6 +574,7 @@ export interface Host {
 export interface HostGroup {
   allowInsecure: boolean;
   alpn: string[];
+  cipherSuites: string;
   echConfigList: string;
   excludeFromSubTypes: string[];
   finalMask: string;
@@ -520,6 +604,14 @@ export interface HostGroup {
   tags: string[];
   verifyPeerCertByName: string;
   vlessRoute: string;
+}
+
+export interface HwidSlotStatus {
+  active: boolean;
+  full: boolean;
+  limit: number;
+  registered: number;
+  remaining: number;
 }
 
 export interface Inbound {
@@ -574,16 +666,19 @@ export interface InboundOption {
   id: number;
   listen?: string;
   mtprotoDomain?: string;
+  network?: string;
   nodeAddress?: string;
   nodeId?: number | null;
   port: number;
   protocol: string;
   remark: string;
+  security?: string;
   shareAddr?: string;
   shareAddrStrategy?: string;
   ssMethod: string;
   tag: string;
   tlsFlowCapable: boolean;
+  tuicServer?: TuicServerSettings | null;
   wgDns?: string;
   wgMtu?: number;
   wgPublicKey?: string;
@@ -776,6 +871,7 @@ export interface ProbeResultUI {
 
 export interface RealityScanResult {
   alpn: string;
+  certChainBytes: number;
   certChainValid: boolean;
   certIssuer: string;
   certSubject: string;
@@ -861,6 +957,26 @@ export interface Traffic {
   IsOutbound: boolean;
   Tag: string;
   Up: number;
+}
+
+export interface TuicClientSettings {
+  email: string;
+  password: string;
+  uuid: string;
+}
+
+export interface TuicServerSettings {
+  alpn: string[];
+  authentication_timeout: number;
+  certificate: string;
+  congestion_control: string;
+  log_level: string;
+  max_idle_time: number;
+  max_udp_relay_packet_size: number;
+  private_key: string;
+  sni?: string;
+  udp_relay_mode: string;
+  zero_rtt_handshake: boolean;
 }
 
 export interface User {
