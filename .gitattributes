@@ -1,12 +1,4 @@
-# Normalize line endings for all text files
-* text=auto
+# LF in every checkout, Windows included: format-check, the msw worker check and
+# tests that parse repo files compare bytes, so a CRLF working copy fails them.
+* text=auto eol=lf
 
-# Force LF for shell scripts (critical for Docker builds on Windows)
-*.sh text eol=lf
-
-# Force LF for generated frontend files (consistent snapshots/diffs)
-frontend/src/generated/** text eol=lf
-frontend/public/openapi.json text eol=lf
-frontend/src/test/__snapshots__/** text eol=lf
-*.go text eol=lf
-deploy/**/*.yaml text eol=lf
