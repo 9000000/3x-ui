@@ -16,12 +16,14 @@ FROM golang:1.27-alpine AS builder
 WORKDIR /app
 ARG TARGETARCH
 ARG TARGETVARIANT
+ARG BUNDLE_EXTRA_GEODATA="false"
 
 RUN apk --no-cache --update add \
   build-base \
   gcc \
   curl \
-  unzip
+  unzip \
+  upx
 
 COPY . .
 COPY --from=frontend /src/internal/web/dist ./internal/web/dist
@@ -29,7 +31,8 @@ COPY --from=frontend /src/internal/web/dist ./internal/web/dist
 ENV CGO_ENABLED=1
 ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
 RUN go build -ldflags "-w -s" -o build/x-ui main.go
-RUN ./DockerInit.sh "$TARGETARCH" "$TARGETVARIANT"
+RUN BUNDLE_EXTRA_GEODATA="${BUNDLE_EXTRA_GEODATA}" ./DockerInit.sh "$TARGETARCH" "$TARGETVARIANT"
+RUN upx --best --lzma build/x-ui build/bin/xray* build/bin/mtg* || true
 
 # ========================================================
 # Stage: Final Image of 3x-ui
@@ -44,13 +47,20 @@ RUN apk add --no-cache --update \
   fail2ban \
   bash \
   curl \
-  openssl
+  openssl \
+  && rm -rf \
+    /usr/lib/python*/ensurepip \
+    /usr/lib/python*/idlelib \
+    /usr/lib/python*/turtledemo \
+    /usr/lib/python*/pydoc_data \
+    /usr/lib/python*/test \
+    /usr/lib/python*/tests \
+  && find /usr/lib/python* -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
+  && rm -rf /var/cache/apk/* /tmp/*
 
 COPY --from=builder /app/build/ /app/
 COPY --from=builder /app/DockerEntrypoint.sh /app/
 COPY --from=builder /app/x-ui.sh /usr/bin/x-ui
-COPY --from=builder /app/internal/web/translation /app/internal/web/translation
-
 
 # Configure fail2ban
 RUN rm -f /etc/fail2ban/jail.d/alpine-ssh.conf \

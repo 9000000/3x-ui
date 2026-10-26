@@ -54,7 +54,7 @@ mkdir -p build/bin
 cd build/bin
 curl -sfLRO "https://github.com/XTLS/Xray-core/releases/download/v26.10.21/Xray-linux-${XRAY_ZIP}.zip"
 unzip "Xray-linux-${XRAY_ZIP}.zip"
-rm -f "Xray-linux-${XRAY_ZIP}.zip" geoip.dat geosite.dat
+rm -f "Xray-linux-${XRAY_ZIP}.zip" geoip.dat geosite.dat LICENSE README.md
 mv xray "${XRAY_BIN}"
 # mtg-multi (MTProto sidecar) ships prebuilt release binaries for every target
 # we package, so download and unpack the matching one instead of compiling.
@@ -66,8 +66,10 @@ rm -rf "${MTG_PKG}" "${MTG_PKG}.tar.gz"
 chmod +x "${MTG_BIN}"
 curl -sfLRO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
 curl -sfLRO https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
-curl -sfLRo geoip_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat
-curl -sfLRo geosite_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat
-curl -sfLRo geoip_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat
-curl -sfLRo geosite_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat
+if [ "${BUNDLE_EXTRA_GEODATA}" = "true" ]; then
+    curl -sfLRo geoip_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat
+    curl -sfLRo geosite_IR.dat https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat
+    curl -sfLRo geoip_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geoip.dat
+    curl -sfLRo geosite_RU.dat https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download/geosite.dat
+fi
 cd ../../
