@@ -114,6 +114,10 @@ func setupSponsorServer(t *testing.T, body string) *atomic.Int32 {
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/media/many") {
+			_, _ = w.Write(pngMagic)
+			return
+		}
 		switch r.URL.Path {
 		case "/media/acme.png":
 			_, _ = w.Write(pngMagic)

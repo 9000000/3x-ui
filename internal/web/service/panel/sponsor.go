@@ -64,12 +64,6 @@ func activeSponsors(raw *SponsorList, now time.Time) *SponsorList {
 		if disabled || notStarted || sp.ID == "" || !now.Before(sp.Until) || !strings.HasPrefix(sp.Link, "https://") {
 			continue
 		}
-		// A bad logo name drops only the logo; the paid slot still renders with its initial.
-		if sponsorLogoRe.MatchString(sp.Logo) {
-			sp.Logo = sponsorLogoPath + sp.Logo
-		} else {
-			sp.Logo = ""
-		}
 		slots := make([]string, 0, len(sp.Slots))
 		for _, slot := range sp.Slots {
 			if sponsorSlots[slot] {
@@ -78,6 +72,12 @@ func activeSponsors(raw *SponsorList, now time.Time) *SponsorList {
 		}
 		if len(slots) == 0 {
 			continue
+		}
+		// A bad logo name drops only the logo; the paid slot still renders with its initial.
+		if sponsorLogoRe.MatchString(sp.Logo) {
+			sp.Logo = sponsorLogoPath + sp.Logo
+		} else {
+			sp.Logo = ""
 		}
 		sp.Slots = slots
 		out.Sponsors = append(out.Sponsors, sp)
